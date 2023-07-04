@@ -1445,8 +1445,8 @@ public:
 		cout << "result pair size: " << result_pairs.size() << ", memory: " << ((double)(um_size + result_pairs.size() * 24 + result_pairs.bucket_count() * 8) / (1024 * 1024)) << endl;   // number of result vertex pairs, and the memory used to store these results.
 		fout << "result pair size: " << result_pairs.size() << ", memory: " << ((double)(um_size + result_pairs.size() * 24 + result_pairs.bucket_count() * 8) / (1024 * 1024)) << endl;
 
-		cout<<"landmark number "<<landmarks.size()<<" tree number "<<forests.size()<<"snapshot graph vertice number "<<g->get_vertice_num()<<endl; 
-		fout<<"landmark number "<<landmarks.size()<<" tree number "<<forests.size()<<"snapshot graph vertice number "<<g->get_vertice_num()<<endl;
+		cout<<"landmark number "<<landmarks.size()<<" tree number "<<forests.size()<<" snapshot graph vertice number "<<g->get_vertice_num()<<endl; 
+		fout<<"landmark number "<<landmarks.size()<<" tree number "<<forests.size()<<" snapshot graph vertice number "<<g->get_vertice_num()<<endl;
 		
 		unsigned int tree_size = 16 + m_size * 2 + us_size; // size of statistics and pointers in a tree
 		double tree_memory = ((double)(um_size + forests.bucket_count() * 8 + forests.size() * (24+tree_size)) / (1024 * 1024)); // forest is a unordered_map (um), each KV is 16 byte, 8 byte long long + 8 byte pointer,
@@ -1588,7 +1588,7 @@ public:
 
 
 	void expire_backtrack(unsigned int v, unsigned int state, unsigned int expired_time, vector<unsigned long long>& deleted_results, unordered_set<unsigned long long>& visited)
-		// this function performs a backward search from a landmark £¨v, state). Deleted_results are the nodes where the path from landmark to them has expired. entry of these nodes in the time info map of its precursor LM trees
+		// this function performs a backward search from a landmark Â£Â¨v, state). Deleted_results are the nodes where the path from landmark to them has expired. entry of these nodes in the time info map of its precursor LM trees
 		// may also expire, we need to check them in the search, visited records the visited LM trees, in case of repeated check. expired_time is the tail of the silding window, entries with timestamp smaller than it expire.
 	{
 		map<unsigned int, lm_info_index*>::iterator iter = v2l_index.find(state);
