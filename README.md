@@ -22,7 +22,7 @@ Timestamps should be in Unix time form. The specific labels we use for different
 **demo.cpp**: demo for testing. The parameters of LM-SRPQ like the candidate set rate (0.2 by default) and benefit threshold (1.5 by default) can be set in this file.   
 
 ## Compile and Run:
-**Compile**: g++ -O2 -std=c++11 -o demo demo.cpp    
+**Compile**: g++ -O3 -std=c++11 -o demo demo.cpp    
 **Run**: ./demo (algorithm type) (path of data) (sliding window length, with days as unit) (sliding interval, with hours as unit) (query type (1-10, please refer to the paper to see the query each number denotes)) (label code for each variable in the RPQ)  
 Algorithm type:  
 1 S-PATH  
