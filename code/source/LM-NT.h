@@ -18,7 +18,7 @@ using namespace std;
 
 
 
-class LM_forest
+class LM_NT
 {
 public:
 	streaming_graph* g; // pointer to the streaming graph
@@ -30,12 +30,12 @@ public:
 	unordered_map<unsigned long long, unsigned int> result_pairs;
 	unordered_set<unsigned long long> landmarks; // set of landmarks, vertex ID and states are merged.
 
-	LM_forest(streaming_graph* g_, automaton* automaton)
+	LM_NT(streaming_graph* g_, automaton* automaton)
 	{
 		g = g_;
 		aut = automaton;
 	}
-	~LM_forest()
+	~LM_NT()
 	{
 		unordered_map<unsigned long long, RPQ_tree*>::iterator it;
 		for (it = forests.begin(); it != forests.end(); it++)
@@ -55,8 +55,8 @@ public:
 	}
 
 	void update_result(unordered_map<unsigned int, unsigned int>& updated_nodes, unsigned int root_ID, unsigned int lm_time = MAX_INT)
-	// first of updated nodes are vertex ID, second are path timestamps, root_ID can reach these vertices with a qualified regular path.
-		// when lm time is set, updated_nodes store path timestamps from a landmark to the vertices, lm time is the path timestamp from root to the landmark, we need to first merge these two parts and then update the result set. 
+		// first of updated nodes are vertex ID, second are path timestamps, root_ID can reach these vertices with a qualified regular path.
+			// when lm time is set, updated_nodes store path timestamps from a landmark to the vertices, lm time is the path timestamp from root to the landmark, we need to first merge these two parts and then update the result set. 
 	{
 		for (unordered_map<unsigned int, unsigned int>::iterator it = updated_nodes.begin(); it != updated_nodes.end(); it++)
 		{
@@ -147,60 +147,196 @@ public:
 		}
 	}
 
-
-	void lm_expand_in_lm_subtree(unsigned int lm, unsigned int state, RPQ_tree* root_lm_tree, unsigned int lm_time, unordered_map<unsigned long long, unsigned int>& updated_nodes)
-		// this function is called when a landmark (lm, state) is added into another lm tree root_lm_tree, the timestamp of this node is lm_time, we scan the LM tree of this landmark and update the time_info map
-		// in root_lm_tree, besides, we record the nodes where the timestamp in the time_info map of root_lm_tree is updated with updated_nodes, we need to update the result set in the upper layer with these nodes.
+	void lm_BFS(unsigned int v, unsigned int state, unordered_map<unsigned long long, unsigned int>& reachable_nodes)
 	{
-		unsigned long long lm_info = merge_long_long(lm, state);
-		if (forests.find(lm_info) == forests.end())
-			return;
-		RPQ_tree* lm_subtree = forests[lm_info]; // find the LM tree
-		for (map<unsigned int, time_info_index*>::iterator state_iter = lm_subtree->time_info.begin(); state_iter != lm_subtree->time_info.end(); state_iter++) { // scan its time info map
-			time_info_index* subtree_index = state_iter->second;
-			if (root_lm_tree->time_info.find(state_iter->first) == root_lm_tree->time_info.end()) // if this state is not in the time info map of root_lm_tree yet, add a new lm_info_index
-				root_lm_tree->time_info[state_iter->first] = new time_info_index;
-			time_info_index* root_index = root_lm_tree->time_info[state_iter->first];
-			for (unordered_map<unsigned int, unsigned int>::iterator iter = subtree_index->index.begin(); iter != subtree_index->index.end(); iter++)
+		priority_queue<pair<unsigned long long, unsigned int>, vector<pair<unsigned long long, unsigned int> >, pair_compare> q;
+		unsigned long long start_point = merge_long_long(v, state);
+		reachable_nodes[start_point] = MAX_INT;
+		q.push(make_pair(start_point, MAX_INT));
+		while (!q.empty())
+		{
+			pair<unsigned long long, unsigned int> p = q.top();
+			unsigned long long info = p.first;
+			unsigned int time = p.second;
+			q.pop();
+			unordered_map<unsigned long long, RPQ_tree*>::iterator iter = forests.find(info);
+			if (iter == forests.end())
+				continue;
+			RPQ_tree* tree_pt = iter->second;
+			for (unordered_map<unsigned long long, unsigned int>::iterator LM_iter = tree_pt->timed_landmarks.begin(); LM_iter != tree_pt->timed_landmarks.end(); LM_iter++)
 			{
-				unsigned int time = min(lm_time, iter->second); // compute the time of latest path from root of root_lm_tree to the node
-				if (root_index->index.find(iter->first) == root_index->index.end())
+				unsigned long long lm = LM_iter->first;
+				unsigned int state = lm & 0xFFFFFFFF;
+				unsigned int ID = (lm >> 32);
+				unsigned int child_time = min(LM_iter->second, time);
+				if (reachable_nodes.find(lm) == reachable_nodes.end())
 				{
-					root_index->index[iter->first] = time;
-					updated_nodes[merge_long_long(iter->first, state_iter->first)] = time;
+					reachable_nodes[lm] = child_time;
+					q.push(make_pair(lm, child_time));
 				}
-				else {
-					if (root_index->index[iter->first] < time)	// if the node is not in the time info map of root_lm_tree before or has a smaller timestamp, we need to update it.
+				else if (reachable_nodes[lm] < child_time)
+				{
+					reachable_nodes[lm] = child_time;
+					q.push(make_pair(lm, child_time));
+				}
+
+			}
+	
+		}
+	}
+
+	void lm_BFS_in_batch(unordered_map<unsigned long long, unsigned int>&updated_de, unordered_map<unsigned long long, unsigned int>& reachable_nodes)
+	{
+		priority_queue<pair<unsigned long long, unsigned int>, vector<pair<unsigned long long, unsigned int> >, pair_compare> q;
+		for (unordered_map<unsigned long long, unsigned int>::iterator iter = updated_de.begin(); iter != updated_de.end(); iter++)
+		{
+			reachable_nodes[iter->first] = iter->second;
+			q.push(make_pair(iter->first, iter->second));
+		}
+		while (!q.empty())
+		{
+			pair<unsigned long long, unsigned int> p = q.top();
+			unsigned long long info = p.first;
+			unsigned int time = p.second;
+			q.pop();
+			unordered_map<unsigned long long, RPQ_tree*>::iterator iter = forests.find(info);
+			if (iter == forests.end())
+				continue;
+			RPQ_tree* tree_pt = iter->second;
+			for (unordered_map<unsigned long long, unsigned int>::iterator LM_iter = tree_pt->timed_landmarks.begin(); LM_iter != tree_pt->timed_landmarks.end(); LM_iter++)
+			{
+				unsigned long long lm = LM_iter->first;
+				unsigned int state = lm & 0xFFFFFFFF;
+				unsigned int ID = (lm >> 32);
+				unsigned int child_time = min(LM_iter->second, time);
+				if (reachable_nodes.find(lm) == reachable_nodes.end())
+				{
+					reachable_nodes[lm] = child_time;
+					q.push(make_pair(lm, child_time));
+				}
+				else if (reachable_nodes[lm] < child_time)
+				{
+					reachable_nodes[lm] = child_time;
+					q.push(make_pair(lm, child_time));
+				}
+			}
+
+		}
+	}
+
+	void reverse_lm_BFS(unsigned int v, unsigned int state, unordered_map<unsigned long long, unsigned int>& reachable_initial_nodes)
+	{
+		priority_queue<pair<unsigned long long, unsigned int>, vector<pair<unsigned long long, unsigned int> >, pair_compare > q;
+		unordered_map<unsigned long long, unsigned int> time_index;
+		unsigned long long start_point = merge_long_long(v, state);
+		time_index[start_point] = MAX_INT;
+		if (state == 0) 
+				reachable_initial_nodes[start_point] = MAX_INT;
+		q.push(make_pair(start_point, MAX_INT));
+		while (!q.empty())
+		{
+			pair<unsigned long long, unsigned int> p = q.top();
+			unsigned long long info = p.first;
+			unsigned int time = p.second;
+			q.pop();
+			unsigned int ID = (info >> 32);
+			unsigned int state = (info & 0xFFFFFFFF);
+			if (v2l_index.find(state) != v2l_index.end())
+			{
+				if (v2l_index[state]->tree_index.find(ID) != v2l_index[state]->tree_index.end())
+				{
+					tree_info* tmp = v2l_index[state]->tree_index[ID];
+					while (tmp)
 					{
-						root_index->index[iter->first] = time;
-						updated_nodes[merge_long_long(iter->first, state_iter->first)] = time;
+						RPQ_tree* tree_pt = tmp->tree;
+						unsigned int parent_ID = tree_pt->root->node_ID;
+						unsigned int parent_state = tree_pt->root->state;
+						unsigned long long parent = merge_long_long(parent_ID, parent_state);
+						if (tree_pt->node_map.find(state) != tree_pt->node_map.end())
+						{
+							if (tree_pt->node_map[state]->index.find(ID) != tree_pt->node_map[state]->index.end())
+							{
+								tree_node* node_pt = tree_pt->node_map[state]->index[ID];
+								unsigned int local_path_time = node_pt->timestamp;
+								unsigned int parent_time = min(time, local_path_time);
+								if (time_index.find(parent) == time_index.end()) {
+									time_index[parent] = parent_time;
+									if (parent_state == 0)
+										reachable_initial_nodes[parent] = parent_time;
+									q.push(make_pair(parent, parent_time));
+								}
+								else if (time_index[parent] < parent_time) {
+									time_index[parent] = parent_time;
+									if (parent_state == 0)
+										reachable_initial_nodes[parent] = parent_time;
+									q.push(make_pair(parent, parent_time));
+								}
+							}
+							else
+								cout << "error! non existent landmark " << endl;
+						}
+						else
+							cout << "error! non existent landmark " << endl;
+						tmp = tmp->next;
+					}
+				}
+			}
+
+			if (v2t_index.find(state) != v2t_index.end())
+			{
+				if (v2t_index[state]->tree_index.find(ID) != v2t_index[state]->tree_index.end())
+				{
+					tree_info* tmp = v2t_index[state]->tree_index[ID];
+					while (tmp)
+					{
+						RPQ_tree* tree_pt = tmp->tree;
+						unsigned int parent_ID = tree_pt->root->node_ID;
+						unsigned int parent_state = tree_pt->root->state;
+						unsigned long long parent = merge_long_long(parent_ID, parent_state);
+						if (tree_pt->node_map.find(state) != tree_pt->node_map.end())
+						{
+							if (tree_pt->node_map[state]->index.find(ID) != tree_pt->node_map[state]->index.end())
+							{
+								tree_node* node_pt = tree_pt->node_map[state]->index[ID];
+								unsigned int local_path_time = node_pt->timestamp;
+								unsigned int parent_time = min(time, local_path_time);
+								if (reachable_initial_nodes.find(parent) == reachable_initial_nodes.end()) // for normal trees, we do not need to use time_index to record the timestamps of dependency paths to them, as 
+									reachable_initial_nodes[parent] = parent_time;
+								else if (reachable_initial_nodes[parent] < parent_time)
+									reachable_initial_nodes[parent] = parent_time;
+							}
+							else
+								cout << "error! non existent landmark " << endl;
+						}
+						else
+							cout << "error! non existent landmark " << endl;
+						tmp = tmp->next;
 					}
 				}
 			}
 		}
 	}
 
-	void lm_expand(tree_node* expand_node, RPQ_tree* lm_tree, unordered_map<unsigned long long, unsigned int>& updated_nodes)
-		// this function expand an LM tree given a new node in it, and record the nodes where the timestamp in the time_info map is updated with updated_nodes,
-	{
-		unsigned int root_ID = lm_tree->root->node_ID;
-		unsigned int root_state = lm_tree->root->state;
 
-		updated_nodes[merge_long_long(expand_node->node_ID, expand_node->state)] = expand_node->timestamp;
-		lm_tree->add_time_info(expand_node->node_ID, expand_node->state, expand_node->timestamp); // first add the new node into the queue
+	void expand(tree_node* expand_node, RPQ_tree* tree_pt, unordered_map<unsigned long long, unsigned int>& updated_de, unordered_map<unsigned int, unsigned int>& updated_nodes, bool if_lm_tree = false ) // expand a delta tree, and record the newly updated dependency edges.
+	{
 		priority_queue<tree_node*, vector<tree_node*>, time_compare> q;
 		q.push(expand_node);
 		while (!q.empty())
 		{
 			tree_node* tmp = q.top();
 			q.pop();
-			if (landmarks.find(merge_long_long(tmp->node_ID, tmp->state)) != landmarks.end())
+			unsigned long long info = merge_long_long(tmp->node_ID, tmp->state);
+			if (landmarks.find(info) != landmarks.end())
 			{
 				tmp->lm = true;
-				lm_tree->add_lm(merge_long_long(tmp->node_ID, tmp->state));
-				lm_expand_in_lm_subtree(tmp->node_ID, tmp->state, lm_tree, tmp->timestamp, updated_nodes);
+				tree_pt->add_timed_lm(info, tmp->timestamp);
+				updated_de[info] = tmp->timestamp;
 				continue;
 			}
+			if (aut->final_state.find(tmp->state) != aut->final_state.end())
+				updated_nodes[tmp->node_ID] = tmp->timestamp;
+
 
 			map<int, int> aut_edge;
 			aut->get_all_suc(tmp->state, aut_edge); // get the edges acceptable to the src state
@@ -213,28 +349,25 @@ public:
 				unsigned int time = min(tmp->timestamp, sucs[i].timestamp);
 				if (aut_edge.find(label) == aut_edge.end())
 					continue;
-				int dst_state = aut_edge[label]; 
-
-				if (lm_tree->get_time_info(successor, dst_state) >= time) // prune the branch if there is already a path with no smaller timestamp
-					continue;
-				if (lm_tree->node_map.find(dst_state) == lm_tree->node_map.end() || lm_tree->node_map[dst_state]->index.find(successor) == lm_tree->node_map[dst_state]->index.end()) // if this node does not exist yet.
+				int dst_state = aut_edge[label];
+				if (tree_pt->node_map.find(dst_state) == tree_pt->node_map.end() || tree_pt->node_map[dst_state]->index.find(successor) == tree_pt->node_map[dst_state]->index.end()) // if this node does not exist yet.
 				{
-					tree_node* new_node = add_lm_node(lm_tree, successor, dst_state, lm_tree->root->node_ID, lm_tree->root->state, tmp, time, sucs[i].timestamp);
-					lm_tree->add_time_info(successor, dst_state, time); // add this new node and upadte the time info map
-					updated_nodes[merge_long_long(successor, dst_state)] = time;
+					tree_node* new_node;
+					if (if_lm_tree)
+						new_node = add_lm_node(tree_pt, successor, dst_state, tree_pt->root->node_ID, tree_pt->root->state, tmp, time, sucs[i].timestamp);
+					else
+						new_node = add_node(tree_pt, successor, dst_state, tree_pt->root->node_ID, tmp, time, sucs[i].timestamp);
 					q.push(new_node);
 				}
 				else
 				{
-					tree_node* dst_pt = lm_tree->node_map[dst_state]->index[successor];
+					tree_node* dst_pt = tree_pt->node_map[dst_state]->index[successor];
 					if (dst_pt->timestamp < time) // if the node exists but has a smaller timestamp
 					{
 						if (dst_pt->parent != tmp)
-							lm_tree->substitute_parent(tmp, dst_pt);
+							tree_pt->substitute_parent(tmp, dst_pt);
 						dst_pt->timestamp = time;
 						dst_pt->edge_timestamp = sucs[i].timestamp;
-						lm_tree->add_time_info(successor, dst_state, time);
-						updated_nodes[merge_long_long(successor, dst_state)] = time;
 						q.push(dst_pt);
 					}
 				}
@@ -242,91 +375,21 @@ public:
 		}
 	}
 
-	void back_track_lm(unsigned int lm, unsigned int state, unsigned int src, unsigned int src_time, unsigned int dst, unsigned int dst_time,
-		unsigned int label, unsigned int src_state, unsigned int dst_state, unordered_map<unsigned long long, unsigned int>& updated_nodes, unordered_map<unsigned long long, vector<pair<unsigned int, unsigned int> > >& lm_results)
-	// this function performs the backward search from a landmark (lm, state), (src, src_state) and (dst, dst_state) are the src node and dst node of this update, src_time and dst_time are the timestamps of the latest paths from the landmark to these two nodes
-		// updated_nodes record the nodes whose timestamp has been updated in the time info map of the landmark, lm_results record the final-state nodes to which the laste path timestamp has been updated for each updated LM tree, it is used in the following normal tree update.
-	{
-		map<unsigned int, lm_info_index*>::iterator it = v2l_index.find(state);
-		if (it != v2l_index.end())
-		{
-			unordered_map<unsigned int, tree_info*>::iterator iter = it->second->tree_index.find(lm); // find the list of LM trees containing this landmark.
-			if (iter == it->second->tree_index.end())
-				return;
-			tree_info* cur = iter->second;
-			while (cur)
-			{
-				RPQ_tree* tree_pt = cur->tree;
-				unsigned int root_ID = tree_pt->root->node_ID;
-				unsigned int root_state = tree_pt->root->state;
-				unsigned long long root_info = merge_long_long(root_ID, root_state);
-				if ((root_ID == lm && root_state == state) || lm_results.find(root_info) != lm_results.end()) // skip this tree if it is the tree of the landmark itself, or if we have updated the LM tree.
-				{
-					cur = cur->next;
-					continue;
-				}
-				assert(tree_pt->node_map.find(state) != tree_pt->node_map.end());
-				assert(tree_pt->node_map[state]->index.find(lm) != tree_pt->node_map[state]->index.end());
-				
-				tree_node* lm_node = tree_pt->node_map[state]->index[lm];
-
-				unordered_map<unsigned long long, unsigned int> tracked_nodes;
-				unsigned int local_src_time = min(lm_node->timestamp, src_time); // timestamp of the path from the root of tree_pt to src node passing the landmark.
-				unsigned int local_dst_time = min(lm_node->timestamp, dst_time); // timestamp of the path from the root of tree_pt to dst node passing the landmark.
-				unsigned long long src_info = merge_long_long(src, src_state);
-				unsigned long long dst_info = merge_long_long(dst, dst_state);
-				if (tree_pt->get_time_info(src, src_state) > local_src_time) // if this is not the latest path to the src node, prune this backtrack
-				{
-					cur = cur->next;
-					continue;
-				}
-				if (tree_pt->get_time_info(dst, dst_state) >= local_dst_time) { // if there is an existing path to dst node with no smaller timestamp, prune this backtrack.
-					cur = cur->next;
-					continue;
-				}
-				for (unordered_map<unsigned long long, unsigned int>::iterator iter = updated_nodes.begin(); iter != updated_nodes.end(); iter++)
-				{
-					unsigned int time = min(lm_node->timestamp, iter->second);
-					if (tree_pt->get_time_info((iter->first >> 32), (iter->first & 0xFFFFFFFF)) >= time) // if the time info of the node iter->first can not be updated, continue to next node
-						continue;
-					tree_pt->add_time_info((iter->first >> 32), (iter->first & 0xFFFFFFFF), time); // update the time info.
-					tracked_nodes.insert(make_pair(iter->first, time)); // record this node with another vector, and use it in further backtrack
-					if (aut->check_final_state(((iter->first) & 0xFFFFFFFF))) { // if this is a final state node, record it in lm_result.
-						if (lm_results.find(root_info) == lm_results.end())
-							lm_results[root_info] = vector<pair<unsigned int, unsigned int> >();
-						lm_results[root_info].push_back(make_pair((iter->first >> 32), time));
-					}
-				}
-				if (!tracked_nodes.empty()) {
-					if (root_state == 0) // if this tree has a initial state root, update the result set.
-						update_result(lm_results[root_info], tree_pt->root->node_ID);
-					back_track_lm(root_ID, root_state, src, local_src_time, dst, local_dst_time, label, src_state, dst_state, tracked_nodes, lm_results);
-				}
-				tracked_nodes.clear();
-				cur = cur->next;
-			}
-		}
-	}
 
 
-	void insert_edge_lm_tree(unsigned int s, unsigned int d, unsigned int label, int timestamp, unsigned int src_state, unsigned int dst_state, RPQ_tree* lm_tree, unordered_map<unsigned long long, vector<pair<unsigned int, unsigned int> > >& lm_results)
-	// insert a new edge (s, src_state) (d, dst_state) with label and timestamp in an LM tree,  record the final-state nodes to which the laste path timestamp has been updated in lm_results.
+
+	void insert_edge_lm_tree(unsigned int s, unsigned int d, unsigned int label, int timestamp, unsigned int src_state, unsigned int dst_state, RPQ_tree* lm_tree, unordered_map<unsigned long long, unsigned int>& updated_de, unordered_map<unsigned int, unsigned int>& updated_nodes)
+		// insert a new edge (s, src_state) (d, dst_state) with label and timestamp in an LM tree,
 	{
 
 		unsigned int root_ID = lm_tree->root->node_ID;
 		unsigned int root_state = lm_tree->root->state;
 		unsigned long long root_info = merge_long_long(root_ID, root_state);
-		if (lm_results.find(merge_long_long(root_ID, root_state)) != lm_results.end()) return;
-		unordered_map<unsigned long long, unsigned int> updated_nodes;
 		assert(lm_tree->node_map.find(src_state) != lm_tree->node_map.end());
 		assert(lm_tree->node_map[src_state]->index.find(s) != lm_tree->node_map[src_state]->index.end());
 		tree_node* src_pt = lm_tree->node_map[src_state]->index[s];
 		unsigned long long src_info = merge_long_long(s, src_state);
 		unsigned long long dst_info = merge_long_long(d, dst_state);
-		if (src_pt->timestamp < lm_tree->get_time_info(s, src_state)) // if the local path is not the latest, prune this update.
-			return;
-		if (lm_tree->get_time_info(d, dst_state) >= min(src_pt->timestamp, timestamp)) // if there is an exisiting path to dst with no smaller timestamp, prune this update. 
-			return;
 
 		tree_node* dst_pt = NULL;
 		if (lm_tree->node_map.find(dst_state) == lm_tree->node_map.end() || lm_tree->node_map[dst_state]->index.find(d) == lm_tree->node_map[dst_state]->index.end()) // add the dst node if it is not in the tree yet.
@@ -340,182 +403,73 @@ public:
 				dst_pt->timestamp = min(src_pt->timestamp, timestamp);
 				dst_pt->edge_timestamp = timestamp;
 			}
+			else
+				return;
 		}
-		lm_expand(dst_pt, lm_tree, updated_nodes); // expand from the dst node
-
-		lm_results[root_info] = vector<pair<unsigned int, unsigned int> >(); // we pick the final state nodes from updated_nodes and record them in lm_results.
-		for (unordered_map<unsigned long long, unsigned int>::iterator it = updated_nodes.begin(); it != updated_nodes.end(); it++) {
-			unsigned int node_ID = (it->first >> 32);
-			unsigned int state = (it->first & 0xFFFFFFFF);
-			if (aut->check_final_state(state))
-				lm_results[root_info].push_back(make_pair(node_ID, it->second));
-		}
-		if (root_state == 0) // if the root has initial state, we need to update the result set.
-			update_result(lm_results[root_info], lm_tree->root->node_ID);
-		back_track_lm(root_ID, root_state, s, src_pt->timestamp, d, dst_pt->timestamp, label, src_state, dst_state, updated_nodes, lm_results); // backtrack from this updated LM tree.
-		updated_nodes.clear();
+		expand(dst_pt, lm_tree, updated_de, updated_nodes, true); // expand from the dst node
+		if (root_state == 0)
+			update_result(updated_nodes, root_ID);
 	}
 
 
 
-	void get_lm_results(unsigned int lm, unsigned int state, unsigned int lm_time, unordered_map<unsigned int, unsigned int>& updated_results)
-	{
-		// this function is called when a landmark is added into a normal tree, we compute timestamp of new paths passing this landmark and record their timestamps in updated_results.
-		// lm_time is the time of landmark in a normal tree, we collect all the final state nodes in the time info map of (lm, state) and merge their timestamp with lm_time to get the timestamp of path from the 
-		// normal tree root to the final state node passing the landmark.
-		unsigned long long lm_info = merge_long_long(lm, state);
-		if (forests.find(lm_info) == forests.end())
-			return;
-		RPQ_tree* lm_tree = forests[lm_info];
-		for (unordered_set<int>::iterator fs_iter = aut->final_state.begin(); fs_iter != aut->final_state.end(); fs_iter++) {
-			int final_state = *fs_iter;
-			if (lm_tree->time_info.find(final_state) != lm_tree->time_info.end())
-			{
-				for (unordered_map<unsigned int, unsigned int>::iterator iter = lm_tree->time_info[final_state]->index.begin(); iter != lm_tree->time_info[final_state]->index.end(); iter++)
-				{
-					unsigned int v = iter->first;
-					unsigned int time = min(lm_time, iter->second);
-					if (updated_results.find(v) != updated_results.end())
-						updated_results[v] = max(updated_results[v], time);
-					else
-						updated_results[v] = time;
-				}
-			}
-		}
-	}
-
-	void non_lm_expand(tree_node* expand_node, RPQ_tree* tree_pt) // this function is used to expand a normal tree given a new node expand_node;
+	void insert_edge_normal_tree(unsigned int s, unsigned int d, unsigned int label, int timestamp, unsigned int src_state, unsigned int dst_state,
+		RPQ_tree* tree_pt, unordered_map<unsigned long long, unsigned int>& updated_de)
 	{
 		unsigned int root_ID = tree_pt->root->node_ID;
-		unordered_map<unsigned int, unsigned int> updated_results; // this map records timestamps of final-state nodes to which the timestamp of latest path has been updated
-		priority_queue<tree_node*, vector<tree_node*>, time_compare> q;
-		q.push(expand_node);
-		while (!q.empty())
-		{
-			tree_node* tmp = q.top();
-			q.pop();
-			unsigned long long tmp_info = merge_long_long(tmp->node_ID, tmp->state);
-			if (aut->check_final_state(tmp->state)) {
-				if (updated_results.find(tmp->node_ID) != updated_results.end())
-					updated_results[tmp->node_ID] = max(updated_results[tmp->node_ID], tmp->timestamp);
-				else
-					updated_results[tmp->node_ID] = tmp->timestamp;
-			}
-			if (landmarks.find(tmp_info) != landmarks.end()) 
+		unsigned int root_state = tree_pt->root->state;
+		unsigned long long root_info = merge_long_long(root_ID, root_state);
+		assert(tree_pt->node_map.find(src_state) != tree_pt->node_map.end());
+		assert(tree_pt->node_map[src_state]->index.find(s) != tree_pt->node_map[src_state]->index.end());
+		tree_node* src_pt = tree_pt->node_map[src_state]->index[s];
+		unsigned long long src_info = merge_long_long(s, src_state);
+		unsigned long long dst_info = merge_long_long(d, dst_state);
+		unordered_map<unsigned int, unsigned int> updated_nodes;
+
+		tree_node* dst_pt = NULL;
+		if (tree_pt->node_map.find(dst_state) == tree_pt->node_map.end() || tree_pt->node_map[dst_state]->index.find(d) == tree_pt->node_map[dst_state]->index.end()) // add the dst node if it is not in the tree yet.
+			dst_pt = add_node(tree_pt, d, dst_state, tree_pt->root->node_ID, src_pt, min(src_pt->timestamp, timestamp), timestamp);
+		else { // else the new timestamp must be larger than the existing timestamp of dst node in this tree, otherwise we should have returned in the above check.
+			dst_pt = tree_pt->node_map[dst_state]->index[d];
+			if (dst_pt->timestamp < min(src_pt->timestamp, timestamp))
 			{
-				tmp->lm = true;
-				tree_pt->add_lm(tmp_info);
-				get_lm_results(tmp->node_ID, tmp->state, tmp->timestamp, updated_results); // if this node is a landmark, we directly get the timestamp of its successors from the time info map.
-				continue;
+				if (dst_pt->parent != src_pt)
+					tree_pt->substitute_parent(src_pt, dst_pt);
+				dst_pt->timestamp = min(src_pt->timestamp, timestamp);
+				dst_pt->edge_timestamp = timestamp;
 			}
-			else {
-				vector<edge_info> vec;
-				g->get_timed_all_suc(tmp->node_ID, vec);  // get all the out edge of the src node
-				for (int i = 0; i < vec.size(); i++)
-				{
-					unsigned int successor = vec[i].d;
-					unsigned int edge_label = vec[i].label;
-					int dst_state = aut->get_suc(tmp->state, edge_label); // check if we can travel to a dst state 
-					if (dst_state == -1)
-						continue;
-					unsigned int time = min(tmp->timestamp, vec[i].timestamp); // compute timestamp of the dst node  
-					if (tree_pt->node_map.find(dst_state) == tree_pt->node_map.end() || tree_pt->node_map[dst_state]->index.find(successor) == tree_pt->node_map[dst_state]->index.end()) // add dst node to the tree if it does not exist 
-						q.push(add_node(tree_pt, successor, dst_state, tree_pt->root->node_ID, tmp, time, vec[i].timestamp));
-					else
-					{
-						tree_node* dst_pt = tree_pt->node_map[dst_state]->index[successor];
-						if (dst_pt->timestamp < time) { // if the timestamp of the new path is larger than the old node time, link dst node to the new path and update its timestamp
-							if (dst_pt->parent != tmp)
-								tree_pt->substitute_parent(tmp, dst_pt);
-							dst_pt->timestamp = time;
-							dst_pt->edge_timestamp = vec[i].timestamp;
-							q.push(dst_pt);
-						}
-					}
-				}
-			}
+			else
+				return;
 		}
-		update_result(updated_results, tree_pt->root->node_ID); // update the result set with the collected final-state nodes
-		updated_results.clear();
+		expand(dst_pt, tree_pt, updated_de, updated_nodes); // expand from the dst node
+		update_result(updated_nodes, root_ID);
 	}
 
-	void visit_non_lm_tree(unsigned int s, unsigned int d, unsigned int label, int timestamp, unsigned int src_state, unsigned int dst_state,
-		RPQ_tree* tree_pt, unordered_map<unsigned long long, vector<pair<unsigned int, unsigned int> > >& lm_results, unordered_set<unsigned int>& visited)
+
+
+	void get_final_nodes(unsigned long long info, unordered_map<unsigned int, unsigned int>& final_nodes)
 	{
-		// this function is used to update normal trees. normal trees are updated in 2 cases: it containing the src node of the new edge, or it is found in the backward search of a lm tree
-		// we do not process normal trees in the back_track_lm fucntion as processing them is different from processing LM trees, and it is better to process LM trees after we processing all the LM
-		// trees, so that we can directly update these LM trees according to the updated reachable nodes of the LM trees of landmarks in it. 
-		if (visited.find(tree_pt->root->node_ID) != visited.end()) // we use a set to filter out the visited normal tree, as we may reach the same normal tree from different backward search branch.
-			return;
-		visited.insert(tree_pt->root->node_ID);
-
-		unsigned int max_src_time = 0;
-		unsigned long long max_src_lm = 0;
-		unsigned int max_dst_time = 0;
-		unsigned long long max_dst_lm = 0;
-
-		for (unordered_set<unsigned long long>::iterator iter = tree_pt->landmarks.begin(); iter != tree_pt->landmarks.end(); iter++) //we scan the landmarks to check the timestamp of the path to src node and dst node passing them
-			// and record the largest timestamp, which is the largest timestamp of paths to the src/ dst node passing landmarks.
+		if (forests.find(info) != forests.end())
 		{
-			unsigned long long lm_info = *iter;
-			if (forests.find(lm_info) != forests.end())
+			RPQ_tree* tree_pt = forests[info];
+			for (map<unsigned int, tree_node_index*>::iterator iter = tree_pt->node_map.begin(); iter != tree_pt->node_map.end(); iter++)
 			{
-				RPQ_tree* lm_tree = forests[lm_info];
-				tree_node* lm_node = tree_pt->find_node((lm_info >> 32), (lm_info & 0xFFFFFFFF));
-				unsigned int local_src_time = lm_tree->get_time_info(s, src_state);
-				if (min(local_src_time, lm_node->timestamp) > max_src_time) {
-					max_src_time = min(local_src_time, lm_node->timestamp);
-					max_src_lm = lm_info;
-				}
-				unsigned int local_dst_time = lm_tree->get_time_info(d, dst_state);
-				if (min(local_dst_time, lm_node->timestamp) > max_dst_time) {
-					max_dst_time = min(local_dst_time, lm_node->timestamp);
-					max_dst_lm = lm_info;
-				}
-			}
-		}
-
-		if (tree_pt->node_map.find(src_state) != tree_pt->node_map.end()) // if the normal tree contians the src node
-		{
-			tree_node_index* tmp_index = tree_pt->node_map[src_state];
-			if (tmp_index->index.find(s) != tmp_index->index.end())
-			{
-				tree_node* src_pt = tmp_index->index[s];
-				if (!src_pt->lm && src_pt->timestamp > max_src_time && min(src_pt->timestamp, timestamp) > max_dst_time) // we expand this normal tree only if the local path has larger timestamp than the paths passing landmarks
-					// and no exisiting path has larger, or equal timestamp than the new local path to the dst node 
+				if (aut->check_final_state(iter->first))
 				{
-					unsigned int time = min(src_pt->timestamp, timestamp);
-					if (tree_pt->node_map.find(dst_state) == tree_pt->node_map.end() || tree_pt->node_map[dst_state]->index.find(d) == tree_pt->node_map[dst_state]->index.end()) { // need to be checked
-						tree_node* dst_pt = add_node(tree_pt, d, dst_state, tree_pt->root->node_ID, src_pt, min(src_pt->timestamp, timestamp), timestamp);
-						non_lm_expand(dst_pt, tree_pt);
-					}
-					else
+					for (unordered_map<unsigned int, tree_node*>::iterator node_iter = iter->second->index.begin(); node_iter != iter->second->index.end(); node_iter++)
 					{
-						tree_node* dst_pt = tree_pt->node_map[dst_state]->index[d];
-						if (dst_pt->timestamp < time)
-						{
-							if (dst_pt->parent != src_pt)
-								tree_pt->substitute_parent(src_pt, dst_pt);
-							dst_pt->timestamp = time;
-							dst_pt->edge_timestamp = timestamp;
-							non_lm_expand(dst_pt, tree_pt);
-						}
+						unsigned int time = node_iter->second->timestamp;
+						if (final_nodes.find(node_iter->first) == final_nodes.end() || final_nodes[node_iter->first] < time)
+							final_nodes[node_iter->first] = time;
 					}
-					return;
 				}
 			}
-		}
-
-		// if we do not expand the normal tree, we need to update it with the paths pass landmarks.
-		if (max_dst_time > min(max_src_time, timestamp)) // in this case the new edge cannot produce latest paths
-			return;
-		if (lm_results.find(max_src_lm) != lm_results.end()) { // otherwise we find the landmark passing which the timestamp of path to src is latest, and update the result sets with the recorded updated nodes. 
-			unsigned int lm_ID = max_src_lm >> 32;
-			unsigned int lm_state = (max_src_lm & 0xFFFFFFFF);
-			update_result(lm_results[max_src_lm], tree_pt->root->node_ID, tree_pt->node_map[lm_state]->index[lm_ID]->timestamp);
 		}
 	}
-	
+
+
+
+
 	void insert_edge(unsigned int s, unsigned int d, unsigned int label, int timestamp) //  a new edge is inserted.
 	{
 		if (aut->acceptable_labels.find(label) == aut->acceptable_labels.end()) // we only insert the edge if the automaton can accept it, in this case the streaming graph is a layer graph containing necessray edges. 
@@ -526,57 +480,45 @@ public:
 			RPQ_tree* new_tree = new RPQ_tree();
 			if (landmarks.find(merge_long_long(s, 0)) == landmarks.end()) // a normal tree
 				new_tree->root = add_node(new_tree, s, 0, s, NULL, MAX_INT, MAX_INT);
-			else { // an LM tree
+			else // an LM tree
 				new_tree->root = add_lm_node(new_tree, s, 0, s, 0, NULL, MAX_INT, MAX_INT);
-				new_tree->add_time_info(s, 0, MAX_INT);
-			}
 			forests[merge_long_long(s, 0)] = new_tree;
 		}
 		vector<pair<int, int> >vec;
 		aut->get_possible_state(label, vec); // find all the state paris that can accept this label
 		for (unsigned int i = 0; i < vec.size(); i++) {
-			unordered_map<unsigned long long, vector<pair<unsigned int, unsigned int> > > lm_results;
 			unsigned int src_state = vec[i].first;
 			unsigned int dst_state = vec[i].second;
 			if (landmarks.find(merge_long_long(s, src_state)) != landmarks.end()) // if (s, src_state) is a landmark
 			{
+				unordered_map<unsigned long long, unsigned int> updated_de;
 				RPQ_tree* tree_pt = forests[merge_long_long(s, src_state)];
-				insert_edge_lm_tree(s, d, label, timestamp, src_state, dst_state, tree_pt, lm_results); // update the lm tree, backtrack is also called, and the lm trees we find in backtrack and the updated reachable nodes of them are in lm_results.
-				unordered_set<unsigned int> visited;
-				map<unsigned int, tree_info_index*>::iterator index_iter = v2t_index.find(src_state); // find the trees with the landmark (s, src_state) and update them. such update is a part of the backtrack. We will not expand the normal but only update the result set.
-				if (index_iter != v2t_index.end())
+				unordered_map<unsigned int, unsigned int> updated_nodes;
+				insert_edge_lm_tree(s, d, label, timestamp, src_state, dst_state, tree_pt, updated_de, updated_nodes); // update the lm tree, backtrack is also called, and the lm trees we find in backtrack and the updated reachable nodes of them are in lm_results.
+				unordered_map<unsigned long long, unsigned int> initial_precursors;
+				reverse_lm_BFS(s, src_state, initial_precursors);
+				unordered_map<unsigned long long, unsigned int> lm_successors;
+				lm_BFS_in_batch(updated_de, lm_successors);
+				for (unordered_map<unsigned long long, unsigned int>::iterator iter = initial_precursors.begin(); iter != initial_precursors.end(); iter++)
 				{
-					unordered_map<unsigned int, tree_info*>::iterator tree_iter = index_iter->second->tree_index.find(s); 
-					if (tree_iter != index_iter->second->tree_index.end()) {
-						tree_info* tmp = tree_iter->second;
-						while (tmp)
-						{
-							visit_non_lm_tree(s, d, label, timestamp, src_state, dst_state, tmp->tree, lm_results, visited);
-							tmp = tmp->next;
-						}
-					}
-				}
-				for (unordered_map<unsigned long long, vector<pair<unsigned int, unsigned int> >>::iterator iter = lm_results.begin(); iter != lm_results.end(); iter++)
-				{
-					unsigned int lm_ID = (iter->first >> 32);
-					unsigned int lm_state = (iter->first & 0xFFFFFFFFF);
-					map<unsigned int, tree_info_index*>::iterator index_iter = v2t_index.find(lm_state); // find the normal trees containing other landmarks we find in backtrack and update them.
-					if (index_iter != v2t_index.end())
+					unsigned int root_id = (iter->first >> 32);
+					unsigned int root_state = (iter->first & 0xFFFFFFFF);
+					update_result(updated_nodes, root_id, iter->second);
+					for (unordered_map<unsigned long long, unsigned int>::iterator iter2 = lm_successors.begin(); iter2 != lm_successors.end(); iter2++)
 					{
-						unordered_map<unsigned int, tree_info*>::iterator tree_iter = index_iter->second->tree_index.find(lm_ID);
-						if (tree_iter != index_iter->second->tree_index.end()) {
-							tree_info* tmp = tree_iter->second;
-							while (tmp) {
-								visit_non_lm_tree(s, d, label, timestamp, src_state, dst_state, tmp->tree, lm_results, visited);
-								tmp = tmp->next;
-							}
-						}
+						unsigned int suc_id = (iter2->first >> 32);
+						unsigned int suc_state = (iter2->first & 0xFFFFFFFF);
+				
+						unordered_map<unsigned int, unsigned int> final_nodes;
+						get_final_nodes(iter2->first, final_nodes);
+						update_result(final_nodes, (iter->first >> 32), min(iter->second, iter2->second));
 					}
-					iter->second.clear();
-				}
-				visited.clear();
+				}	
+				
 			}
 			else {
+				unordered_map<unsigned long long, unordered_map<unsigned long long, unsigned int>> search_history;
+				unordered_map<unsigned long long, unordered_map<unsigned long long, unsigned int>> dependency_paths;
 				map<unsigned int, lm_info_index*>::iterator index_iter = v2l_index.find(src_state); // if (s, src_state) is not a landmark, we need to first update all the LM trees contianing it, and backtrack from them.
 				if (index_iter != v2l_index.end())
 				{
@@ -585,12 +527,37 @@ public:
 						tree_info* tmp = tree_iter->second;
 						while (tmp)
 						{
-							insert_edge_lm_tree(s, d, label, timestamp, src_state, dst_state, tmp->tree, lm_results);
+							unordered_map<unsigned long long, unsigned int> updated_de;
+							unordered_map<unsigned int, unsigned int> updated_nodes;
+							insert_edge_lm_tree(s, d, label, timestamp, src_state, dst_state, tmp->tree, updated_de, updated_nodes);
+							unordered_map<unsigned long long, unsigned int> initial_precursors;
+							reverse_lm_BFS(tmp->tree->root->node_ID, tmp->tree->root->state, initial_precursors);
+							for (unordered_map<unsigned long long, unsigned int>::iterator iter = updated_de.begin(); iter != updated_de.end(); iter++)
+							{
+								if (search_history.find(iter->first) == search_history.end())
+									lm_BFS((iter->first >> 32), (iter->first & 0xFFFFFFFF), search_history[iter->first]);
+							}
+							for (unordered_map<unsigned long long, unsigned int>::iterator iter = initial_precursors.begin(); iter != initial_precursors.end(); iter++)
+							{
+								update_result(updated_nodes, (iter->first >> 32), iter->second);
+								for (unordered_map<unsigned long long, unsigned int>::iterator iter2 = updated_de.begin(); iter2 != updated_de.end(); iter2++)
+								{
+									for (unordered_map<unsigned long long, unsigned int>::iterator iter3 = search_history[iter2->first].begin(); iter3 != search_history[iter2->first].end(); iter3++)
+									{
+										unsigned int time = min(iter->second, iter2->second);
+										time = min(time, iter3->second);
+										if (dependency_paths[iter->first].find(iter3->first) == dependency_paths[iter->first].end() || dependency_paths[iter->first][iter3->first] < time)
+											dependency_paths[iter->first][iter3->first] = time;
+									}
+								}
+							}
+							updated_de.clear();
+							updated_nodes.clear();
+							initial_precursors.clear();
 							tmp = tmp->next;
 						}
 					}
 				}
-				unordered_set<unsigned int> visited;
 				map<unsigned int, tree_info_index*>::iterator index_iter2 = v2t_index.find(src_state);
 				if (index_iter2 != v2t_index.end())
 				{
@@ -599,133 +566,106 @@ public:
 						tree_info* tmp = tree_iter->second;
 						while (tmp)
 						{
-							visit_non_lm_tree(s, d, label, timestamp, src_state, dst_state, tmp->tree, lm_results, visited);
+							unsigned int root_ID = tmp->tree->root->node_ID;
+							unsigned int root_state = tmp->tree->root->state;
+							unsigned long long root_info = merge_long_long(root_ID, root_state);
+							unordered_map<unsigned long long, unsigned int> updated_de;
+							insert_edge_normal_tree(s, d, label, timestamp, src_state, dst_state, tmp->tree, updated_de);
+							for (unordered_map<unsigned long long, unsigned int>::iterator iter = updated_de.begin(); iter != updated_de.end(); iter++)
+							{
+								if (search_history.find(iter->first) == search_history.end())
+									lm_BFS((iter->first >> 32), (iter->first & 0xFFFFFFFF), search_history[iter->first]);
+								for (unordered_map<unsigned long long, unsigned int>::iterator iter2 = search_history[iter->first].begin(); iter2 != search_history[iter->first].end(); iter2++)
+								{
+									unsigned int time = min(iter->second, iter2->second);
+									if (dependency_paths[root_info].find(iter2->first) == dependency_paths[root_info].end() || dependency_paths[root_info][iter2->first] < time)
+											dependency_paths[root_info][iter2->first] = time;
+								}
+							}
 							tmp = tmp->next;
 						}
 					}
 				}
-
-				for (unordered_map<unsigned long long, vector<pair<unsigned int, unsigned int> >>::iterator iter = lm_results.begin(); iter != lm_results.end(); iter++) 
+				for (unordered_map<unsigned long long, unordered_map<unsigned long long, unsigned int>>::iterator iter = search_history.begin(); iter != search_history.end(); iter++)
+					iter->second.clear();
+				search_history.clear();
+				for (unordered_map<unsigned long long, unordered_map<unsigned long long, unsigned int>>::iterator iter = dependency_paths.begin();iter!=dependency_paths.end();iter++)
 				{
-					unsigned int lm_ID = (iter->first >> 32);
-					unsigned int lm_state = (iter->first & 0xFFFFFFFFF);
-					map<unsigned int, tree_info_index*>::iterator index_iter = v2t_index.find(lm_state); // at last we find the normal trees containing landmarks that we found in backtrack. These normal trees are endpoint of bachtrack branches, we 
-					// update them together at last so that we ensure every LM tree has been updated, and we can directly use their time info maps safely in the normal tree update.
-					if (index_iter != v2t_index.end())
+					unsigned int root_ID = (iter->first >> 32);
+					unsigned int root_state = (iter->first & 0xFFFFFFFFF);
+					for (unordered_map<unsigned long long, unsigned int>::iterator iter2 = iter->second.begin(); iter2 != iter->second.end(); iter2++)
 					{
-						unordered_map<unsigned int, tree_info*>::iterator tree_iter = index_iter->second->tree_index.find(lm_ID);
-						if (tree_iter != index_iter->second->tree_index.end()) {
-							tree_info* tmp = tree_iter->second;
-							while (tmp) {
-								visit_non_lm_tree(s, d, label, timestamp, src_state, dst_state, tmp->tree, lm_results, visited);
-								tmp = tmp->next;
-							}
-						}
+						unsigned int suc_ID = (iter2->first >> 32);
+						unsigned int suc_state = (iter2->first & 0xFFFFFFFF);
+			
+						unordered_map<unsigned int, unsigned int> final_nodes;
+						get_final_nodes(iter2->first, final_nodes);
+						update_result(final_nodes, root_ID, iter2->second);
 					}
 					iter->second.clear();
 				}
-				visited.clear();
+				dependency_paths.clear();
 			}
-			lm_results.clear();
 		}
 
 	}
-	void expand_in_recover(tree_node* expand_node, RPQ_tree* tree_pt, RPQ_tree* lm_tree, bool lm_expand_tree = false) // this is the function to expand a tree when recovering 
-		// the subtree of a eliminated landmark. tree_pt is the tree in which we recover the subtree, lm_expand_tree indicating if it is an LM tree. lm_tree is the pointer to the LM tree of the eliminated landmark
-		// we carry out expand following this LM tree rather than traverse the graph.
+
+	void expand_in_recover(tree_node* expand_node, RPQ_tree* tree_pt, bool lm_expand_tree = false)
 	{
-		if (!lm_tree)
-			return;
+		priority_queue<tree_node*, vector<tree_node*>, time_compare> q;
+                q.push(expand_node);
+                while (!q.empty())
+                {
+                        tree_node* tmp = q.top();
+                        q.pop();
+                        unsigned long long info = merge_long_long(tmp->node_ID, tmp->state);
+                        if (landmarks.find(info) != landmarks.end())
+                        {
+                                tmp->lm = true;
+                                tree_pt->add_timed_lm(info, tmp->timestamp);
+                                continue;
+                        }
 
-		queue<pair<tree_node*, tree_node*> > q; // each pair store a node in tree_pt and the corresponding node in lm_tree.
- 		q.push(make_pair(expand_node, lm_tree->root));
-		while (!q.empty())
-		{
-			pair<tree_node*, tree_node*> tmp = q.front();
-			q.pop();
-			tree_node* expand_tree_node = tmp.first;
-			tree_node* lm_tree_node = tmp.second;
-			if (landmarks.find(merge_long_long(lm_tree_node->node_ID, lm_tree_node->state)) != landmarks.end())
-			{
-				expand_tree_node->lm = true;
-				tree_pt->add_lm(merge_long_long(lm_tree_node->node_ID, lm_tree_node->state)); // if we encounter a landmark, we prune this branch, but we donot need to update time info map or the result set, as 
-				// no new path will be generated in subtree recover.
-				continue;
-			}
-			tree_node* child = lm_tree_node->child;
-			while (child) // scan the child of the lm tree node
-			{
-				unsigned int v = child->node_ID;
-				unsigned int state = child->state;
-				unsigned int time = min(child->edge_timestamp, expand_tree_node->timestamp); // compute the timestamp of this child in tree_pt
-				if (tree_pt->node_map.find(state) == tree_pt->node_map.end() || tree_pt->node_map[state]->index.find(v) == tree_pt->node_map[state]->index.end()) 
-				{
-					tree_node* new_node = NULL; // if it does not exist, we add this node
-					if (lm_expand_tree) {
-						new_node = add_lm_node(tree_pt, v, state, tree_pt->root->node_ID, tree_pt->root->state, expand_tree_node, time, child->edge_timestamp);
-						if (tree_pt->get_time_info(v, state) < time) // in fact I suppose this will not happen, as no new path will be build in recovering subtree, still check it to make sure. 
-							tree_pt->add_time_info(v, state, time);
-					}
-					else
-						new_node = add_node(tree_pt, v, state, tree_pt->root->node_ID, expand_tree_node, time, child->edge_timestamp);
-					q.push(make_pair(new_node, child));
-				}
-				else
-				{
-					tree_node* new_node = tree_pt->node_map[state]->index[v]; // of the node exists, we update its timestamp.
-					if (new_node->timestamp < time)
-					{
-						if (new_node->parent != expand_tree_node)
-							tree_pt->substitute_parent(expand_tree_node, new_node);
-						new_node->edge_timestamp = child->edge_timestamp;
-						new_node->timestamp = time;
-						if (lm_expand_tree) {
-							if (tree_pt->get_time_info(v, state) < time)
-								tree_pt->add_time_info(v, state, time);
-						}
-						q.push(make_pair(new_node, child));
-					}
-					else {
-						q.push(make_pair(new_node, child)); // it should be noted here, this is necessary. Even if the node already exisits in tree_pt, its successor may be pruned due to a path with larger timestamp in the lm_tree, thus we need to proceed to check.
-					}
-				}
-				child = child->brother;
-			}
-		}
+
+                        map<int, int> aut_edge;
+                        aut->get_all_suc(tmp->state, aut_edge); // get the edges acceptable to the src state
+                        vector<edge_info>sucs;
+                        g->get_timed_all_suc(tmp->node_ID, sucs); // get out edges of the src node
+                        for (int i = 0; i < sucs.size(); i++)
+                        {
+                                unsigned int successor = sucs[i].d;
+                                unsigned int label = sucs[i].label;
+                                unsigned int time = min(tmp->timestamp, sucs[i].timestamp);
+                                if (aut_edge.find(label) == aut_edge.end())
+                                        continue;
+                                int dst_state = aut_edge[label];
+                                if (tree_pt->node_map.find(dst_state) == tree_pt->node_map.end() || tree_pt->node_map[dst_state]->index.find(successor) == tree_pt->node_map[dst_state]->index.end()) // if this node does not exist yet.
+                                {
+                                        tree_node* new_node;
+                                        if (lm_expand_tree)
+                                                new_node = add_lm_node(tree_pt, successor, dst_state, tree_pt->root->node_ID, tree_pt->root->state, tmp, time, sucs[i].timestamp);
+                                        else
+                                                new_node = add_node(tree_pt, successor, dst_state, tree_pt->root->node_ID, tmp, time, sucs[i].timestamp);
+                                        q.push(new_node);
+                                }
+                                else
+                                {
+                                        tree_node* dst_pt = tree_pt->node_map[dst_state]->index[successor];
+                                        if (dst_pt->timestamp < time) // if the node exists but has a smaller timestamp
+                                        {
+                                                if (dst_pt->parent != tmp)
+                                                        tree_pt->substitute_parent(tmp, dst_pt);
+                                                dst_pt->timestamp = time;
+                                                dst_pt->edge_timestamp = sucs[i].timestamp;
+                                                q.push(dst_pt);
+                                        }
+                                }
+                        }
+                }
+
 	}
 
-	void generate_time_info(RPQ_tree* tree_pt) // this function is used to generate time info map for new LM trees. Time info map is generated as a union of nodes in this LM tree, and the time info map of the landmarks in it.
-	{
-		for (map<unsigned int, tree_node_index*>::iterator iter = tree_pt->node_map.begin(); iter != tree_pt->node_map.end(); iter++)
-		{
-			unsigned int state = iter->first;
-			if (tree_pt->time_info.find(state) == tree_pt->time_info.end())
-				tree_pt->time_info[state] = new time_info_index;
-			for (unordered_map<unsigned int, tree_node*>::iterator node_iter = iter->second->index.begin(); node_iter != iter->second->index.end(); node_iter++)
-				tree_pt->time_info[state]->index[node_iter->first] = node_iter->second->timestamp;
-		}
-		for (unordered_set<unsigned long long>::iterator set_iter = tree_pt->landmarks.begin(); set_iter != tree_pt->landmarks.end(); set_iter++)
-		{
-			unsigned long long lm_info = *set_iter;
-			unsigned int lm_ID = (lm_info >> 32);
-			unsigned int lm_state = (lm_info & 0xFFFFFFFF);
-			tree_node* lm_node = tree_pt->find_node(lm_ID, lm_state);
-			unsigned int lm_time = lm_node->timestamp;
-			if (forests.find(lm_info) != forests.end())
-			{
-				RPQ_tree* lm_tree = forests[lm_info];
-				for (map<unsigned int, time_info_index*>::iterator iter = lm_tree->time_info.begin(); iter != lm_tree->time_info.end(); iter++)
-				{
-					unsigned int state = iter->first;
-					if (tree_pt->time_info.find(state) == tree_pt->time_info.end())
-						tree_pt->time_info[state] = new time_info_index;
-					for (unordered_map<unsigned int, unsigned int>::iterator info_iter = iter->second->index.begin(); info_iter != iter->second->index.end(); info_iter++)
-						tree_pt->time_info[state]->index[info_iter->first] = max(tree_pt->time_info[state]->index[info_iter->first], min(info_iter->second, lm_time));
 
-				}
-			}
-		}
-	}
 	void switch_tree_index(RPQ_tree* tree_pt) // this function switch the reverse index of nodes in tree_pt from v2t_index to v2l_index, used when tree_pt is transformed into an LM tree.
 	{
 		unsigned int root_ID = tree_pt->root->node_ID;
@@ -765,30 +705,13 @@ public:
 				while (tmp)
 				{
 					RPQ_tree* tree_pt = tmp->tree;
-					tree_pt->landmarks.erase(merge_long_long(v, state));
-					shrink(tree_pt->landmarks);
+					tree_pt->timed_landmarks.erase(merge_long_long(v, state));
+					shrink(tree_pt->timed_landmarks);
 					tree_node* lm_node = tree_pt->find_node(v, state);
 					lm_node->lm = false;
 					if (lm_tree) {
 						if (tree_pt->root->node_ID != v || tree_pt->root->state != state)
-						{
-							bool latest = true;
-							for (unordered_set<unsigned long long>::iterator lm_iter = tree_pt->landmarks.begin(); lm_iter != tree_pt->landmarks.end(); lm_iter++) // we first check if the landmark to make sure if the local path is latest
-							{
-								unsigned long long lm_info = *lm_iter;
-								if (forests.find(lm_info) != forests.end())
-								{
-									tree_node* tmp_lm = tree_pt->find_node((lm_info >> 32), (lm_info & 0xFFFFFFFF));
-									if (min(forests[lm_info]->get_time_info(v, state), tmp_lm->timestamp) >= lm_node->timestamp)
-									{
-										latest = false;
-										break;
-									}
-								}
-							}
-							if (latest)	// we only recover the subtree if the local path is latest
-								expand_in_recover(lm_node, tree_pt, lm_tree);
-						}
+								expand_in_recover(lm_node, tree_pt, false);
 					}
 					tmp = tmp->next;
 				}
@@ -807,15 +730,13 @@ public:
 				while (tmp)
 				{
 					RPQ_tree* tree_pt = tmp->tree;
-					tree_pt->landmarks.erase(merge_long_long(v, state));
-					shrink(tree_pt->landmarks);
+					tree_pt->timed_landmarks.erase(merge_long_long(v, state));
+					shrink(tree_pt->timed_landmarks);
 					tree_node* lm_node = tree_pt->find_node(v, state);
 					lm_node->lm = false;
 					if (lm_tree) {
 						if (tree_pt->root->node_ID != v || tree_pt->root->state != state) { // in LM trees, we can quickly  decide if the local path is latest with time info map
-							if (tree_pt->get_time_info(v, state) <= lm_node->timestamp) {
-								expand_in_recover(lm_node, tree_pt, lm_tree, true);
-							}
+								expand_in_recover(lm_node, tree_pt, true);
 						}
 					}
 					tmp = tmp->next;
@@ -835,8 +756,8 @@ public:
 				while (tmp)
 				{
 					RPQ_tree* tree_pt = tmp->tree;
-					tree_pt->landmarks.insert(merge_long_long(v, state)); // add the new landmark to the landmark set of the normal tree
 					tree_node* lm_node = tree_pt->find_node(v, state);
+					tree_pt->add_timed_lm(merge_long_long(v, state), lm_node->timestamp);
 					lm_node->lm = true;
 					tree_node* child = lm_node->child;  // carry out a BFS starting from childs of this landmark, and delete all the succesors in its subtree.
 					lm_node->child = NULL;
@@ -865,8 +786,8 @@ public:
 							tree_pt->node_map.erase(cur->state);
 						}
 						if (cur->lm) {
-							tree_pt->landmarks.erase(merge_long_long(cur->node_ID, cur->state));
-							shrink(tree_pt->landmarks);
+							tree_pt->timed_landmarks.erase(merge_long_long(cur->node_ID, cur->state));
+							shrink(tree_pt->timed_landmarks);
 						}
 						delete cur;
 						tree_pt->node_cnt--;
@@ -877,9 +798,7 @@ public:
 		}
 	}
 
-	void retrieve_subtree_lm(unsigned int v, unsigned int state, RPQ_tree* lm_tree, unordered_set<unsigned long long>& necessary_nodes) // this function delete the subtree of a landmark (v, state) in LM trees.
-		// note that there are some "sensitive " nodes which may be missed in the LM tree of (v, state), we need to compare the LM tree of (v, state) (lm_tree) with each subtree to find these nodes, and add them into 
-		// nessary_nodes. They will be added into lm_tree later. Reasons about why they may be missed can be found in the technical report.
+	void retrieve_subtree_lm(unsigned int v, unsigned int state, RPQ_tree* lm_tree)
 	{
 		map<unsigned int, lm_info_index*>::iterator iter = v2l_index.find(state);
 		if (iter != v2l_index.end())
@@ -895,60 +814,40 @@ public:
 						tmp = tmp->next;
 						continue;
 					}
-					tree_pt->landmarks.insert(merge_long_long(v, state));
 					tree_node* lm_node = tree_pt->find_node(v, state);
+					tree_pt->add_timed_lm(merge_long_long(v, state), lm_node->timestamp);
 					lm_node->lm = true;
 					tree_node* child = lm_node->child;
 					lm_node->child = NULL;
 					queue<tree_node*> q;
-					vector<tree_node*> vec;
-					unordered_map<unsigned long long, unsigned int> lm_time; // this map stores timestamps of the path from the landmark (v, state) to each successor in the subtree, if we find a latest path in the subtree but not in lm_tree, we need to add nodes 
-					// in this path to necessary nodes, 
-					lm_time[merge_long_long(v, state)] = MAX_INT; // (v, state) is the root of the subtree, and we set its timestamp of MAX_INT
 					while (child)
 					{
 						q.push(child);
-						lm_time[merge_long_long(child->node_ID, child->state)] = child->edge_timestamp; // timestamp of the path from the landmark to its child is just the edge between them.
-						vec.push_back(child);
 						child = child->brother;
 					}
 					while (!q.empty())
 					{
 						tree_node* cur = q.front();
 						q.pop();
-						unsigned int time = lm_time[merge_long_long(cur->node_ID, cur->state)];
-						if (time == lm_tree->get_time_info(cur->node_ID, cur->state) && lm_tree->find_node(cur->node_ID, cur->state) == NULL && necessary_nodes.find(merge_long_long(cur->node_ID, cur->state)) == necessary_nodes.end()) // a latest path, but not in the new lm tree
-						{
-							tree_node* cur2 = cur; //we find a successor to which the path in the subtree is the latest but not in the lm_tree
-							while (cur2 != lm_node) // we store nodes in the path from the landmark to this successor 
-							{
-								necessary_nodes.insert(merge_long_long(cur2->node_ID, cur2->state));
-								cur2 = cur2->parent;
-							}
-						}
+						delete_lm_index(cur->node_ID, cur->state, tree_pt->root->node_ID, tree_pt->root->state);
 						child = cur->child;
 						while (child)
 						{
 							q.push(child);
-							lm_time[merge_long_long(child->node_ID, child->state)] = min(time, child->edge_timestamp);
-							vec.push_back(child);  // we store all the tree nodes in a vector, and delete them after we gather all the necessary nodes.
 							child = child->brother;
 						}
-					}
-					for (int i = 0; i < vec.size(); i++)
-					{
-						delete_lm_index(vec[i]->node_ID, vec[i]->state, tree_pt->root->node_ID, tree_pt->root->state);
-						tree_pt->node_map[vec[i]->state]->index.erase(vec[i]->node_ID);
-						shrink(tree_pt->node_map[vec[i]->state]->index);
-						if (tree_pt->node_map[vec[i]->state]->index.empty()) {
-							delete tree_pt->node_map[vec[i]->state];
-							tree_pt->node_map.erase(vec[i]->state);
+
+						tree_pt->node_map[cur->state]->index.erase(cur->node_ID);
+						shrink(tree_pt->node_map[cur->state]->index);
+						if (tree_pt->node_map[cur->state]->index.empty()) {
+							delete tree_pt->node_map[cur->state];
+							tree_pt->node_map.erase(cur->state);
 						}
-						if (vec[i]->lm) {
-							tree_pt->landmarks.erase(merge_long_long(vec[i]->node_ID, vec[i]->state));
-							shrink(tree_pt->landmarks);
+						if (cur->lm) {
+							tree_pt->timed_landmarks.erase(merge_long_long(cur->node_ID, cur->state));
+							shrink(tree_pt->timed_landmarks);
 						}
-						delete vec[i];
+						delete cur;
 						tree_pt->node_cnt--;
 					}
 					tmp = tmp->next;
@@ -957,68 +856,10 @@ public:
 
 		}
 	}
-
-	void fulfill_new_lm_tree(RPQ_tree* tree_pt, unordered_set<unsigned long long> necessary_nodes)
-		// this function add necessary nodes to a new LM tree. these nodes are in paths which are latest but not in the LM tree, they are pruned because there is already a path with the same timestamp passing 
-		// other landmarks. However, due to existence of circles, these paths may be in the subtree of the new landmark, and once the subtree is deleted, these paths are missed. thus we need to add them back in
-		// the LM tree. Details about how these nodes are missed can be found in the technical report
-	{
-		vector<tree_node*> original_vec;
-		for (map<unsigned int, tree_node_index*>::iterator iter = tree_pt->node_map.begin(); iter != tree_pt->node_map.end(); iter++)
-		{
-			for (unordered_map<unsigned int, tree_node*>::iterator iter2 = iter->second->index.begin(); iter2 != iter->second->index.end(); iter2++)
-				original_vec.push_back(iter2->second);
-		}
-
-		for (int i = 0; i < original_vec.size(); i++) // we scan the nodes already in the lm tree one by one, try to expand them to add the necessary nodes.
-		{
-			tree_node* cur = original_vec[i];
-			queue<tree_node*> q;
-			q.push(cur);
-			while (!q.empty()) {
-				cur = q.front();
-				q.pop();
-				if (cur->lm) {
-					tree_pt->landmarks.insert(merge_long_long(cur->node_ID, cur->state));
-					continue;
-				}
-				vector<edge_info> vec;
-				g->get_timed_all_suc(cur->node_ID, vec);
-				for (int j = 0; j < vec.size(); j++)
-				{
-					unsigned int successor = vec[j].d;
-					int dst_state = aut->get_suc(cur->state, vec[j].label);
-					if (dst_state == -1)
-						continue;
-					unsigned int time = min(cur->timestamp, vec[j].timestamp);
-					if (necessary_nodes.find(merge_long_long(successor, dst_state)) == necessary_nodes.end() && tree_pt->get_time_info(successor, dst_state) > time) // we prune a branch if it is not a necessary nodes and the path to it is not the latest.
-						continue;
-					if (tree_pt->node_map.find(dst_state) != tree_pt->node_map.end() && tree_pt->node_map[dst_state]->index.find(successor) != tree_pt->node_map[dst_state]->index.end()) 
-					{
-						tree_node* suc_pt = tree_pt->node_map[dst_state]->index[successor];
-						if (suc_pt->timestamp < time)
-						{
-							if (suc_pt->parent != cur)
-								tree_pt->substitute_parent(cur, suc_pt);
-							suc_pt->edge_timestamp = vec[j].timestamp;
-							suc_pt->timestamp = time;
-							q.push(suc_pt);
-						}
-					}
-					else
-					{
-						tree_node* suc_pt = add_lm_node(tree_pt, successor, dst_state, tree_pt->root->node_ID, tree_pt->root->state, cur, time, vec[j].timestamp, landmarks.find(merge_long_long(successor, dst_state)) != landmarks.end());
-						q.push(suc_pt);
-					}
-				}
-			}
-		}
-	}
 	RPQ_tree* build_lm_tree(unsigned int v, unsigned int state) // this function build new lm tree for a landmark, we use time info in prune and may miss some nodes, we will add them back with above fulfill_new_lm_tree later .
 	{
 		RPQ_tree* new_tree = new RPQ_tree;
 		new_tree->root = new_tree->add_node(v, state, NULL, MAX_INT, MAX_INT);
-		new_tree->add_time_info(v, state, MAX_INT);
 		queue<tree_node*> q;
 		q.push(new_tree->root);
 		while (!q.empty())
@@ -1028,10 +869,7 @@ public:
 			if (tmp != new_tree->root && landmarks.find(merge_long_long(tmp->node_ID, tmp->state)) != landmarks.end())
 			{
 				tmp->lm = true;
-				new_tree->add_lm(merge_long_long(tmp->node_ID, tmp->state));
-				unordered_map<unsigned long long, unsigned int> tmp_map;
-				lm_expand_in_lm_subtree(tmp->node_ID, tmp->state, new_tree, tmp->timestamp, tmp_map); // we only need to update the time info map of the new LM tree with the landmark we find
-				tmp_map.clear();
+				new_tree->add_timed_lm(merge_long_long(tmp->node_ID, tmp->state), tmp->timestamp);
 				continue;
 			}
 
@@ -1048,13 +886,9 @@ public:
 					continue;
 				int dst_state = aut_edge[label];
 
-				if (new_tree->get_time_info(successor, dst_state) >= time) // we pruen the branch once there is already a path with no smaller timestamp. this may lead to some nodes missing. they will be added back later in fulfill_new_lm tree. 
-					continue;
-
 				if (new_tree->node_map.find(dst_state) == new_tree->node_map.end() || new_tree->node_map[dst_state]->index.find(successor) == new_tree->node_map[dst_state]->index.end())
 				{
 					tree_node* new_node = new_tree->add_node(successor, dst_state, tmp, time, sucs[i].timestamp);
-					new_tree->add_time_info(successor, dst_state, time);
 					q.push(new_node);
 				}
 				else
@@ -1066,7 +900,6 @@ public:
 							new_tree->substitute_parent(tmp, dst_pt);
 						dst_pt->timestamp = time;
 						dst_pt->edge_timestamp = sucs[i].timestamp;
-						new_tree->add_time_info(successor, dst_state, time);
 						q.push(dst_pt);
 					}
 				}
@@ -1180,17 +1013,13 @@ public:
 						tmp = tmp->next;
 						continue;
 					}
-					tree_node* lm_node = tree_pt->find_node(v, state);
-					if (tree_pt->get_time_info(v, state) == lm_node->timestamp) // in LM tree we will check if the local path to the landmark is latest, as it costs little.
+					for (map<unsigned int, tree_node_index*>::iterator node_iter1 = lm_tree->node_map.begin(); node_iter1 != lm_tree->node_map.end(); node_iter1++)
 					{
-						for (map<unsigned int, tree_node_index*>::iterator node_iter1 = lm_tree->node_map.begin(); node_iter1 != lm_tree->node_map.end(); node_iter1++)
+						for (unordered_map<unsigned int, tree_node*>::iterator node_iter2 = node_iter1->second->index.begin(); node_iter2 != node_iter1->second->index.end(); node_iter2++)
 						{
-							for (unordered_map<unsigned int, tree_node*>::iterator node_iter2 = node_iter1->second->index.begin(); node_iter2 != node_iter1->second->index.end(); node_iter2++)
+							if (tree_pt->find_node(node_iter2->first, node_iter1->first) == NULL)
 							{
-								if (tree_pt->find_node(node_iter2->first, node_iter1->first) == NULL)
-								{
 									node_budget--;
-								}
 							}
 						}
 					}
@@ -1276,7 +1105,7 @@ public:
 		return node_cnt;
 	}
 
-	void delete_v2h_index(RPQ_tree* tree_pt) // this function delete the reverse index of nodes in a LM tree.
+	void delete_v2l_index(RPQ_tree* tree_pt) // this function delete the reverse index of nodes in a LM tree.
 	{
 		queue<tree_node*> q;
 		q.push(tree_pt->root);
@@ -1352,12 +1181,11 @@ public:
 				recover_subtree(v, state, tree_pt);
 				recover_subtree_lm(v, state, tree_pt); // rcover the subtrees
 				if (state == 0) { // if the state is 0, we need to transform the LM tree back to a normal tree.
-					tree_pt->clear_time_info(); // delete the time info map
 					switch_tree_index_reverse(tree_pt); // swith the reverse index of the nodes in it from v2h to v2l
 				}
 				else // else we need to delete this tree.
 				{
-					delete_v2h_index(tree_pt);
+					delete_v2l_index(tree_pt);
 					delete tree_pt;
 					forests.erase(info);
 				}
@@ -1374,7 +1202,7 @@ public:
 					it = landmarks.erase(it);
 					recover_subtree(v, state, tree_pt);
 					recover_subtree_lm(v, state, tree_pt);
-					delete_v2h_index(tree_pt);
+					delete_v2l_index(tree_pt);
 					delete tree_pt;
 					forests.erase(info);
 				}
@@ -1400,20 +1228,16 @@ public:
 			RPQ_tree* tree_pt = NULL;
 			if (forests.find(info) != forests.end()) { // if there is already a normal tree for it, it mush have state 0, and should be selected as a landmark.
 				tree_pt = forests[info];
-				generate_time_info(tree_pt);
 				switch_tree_index(tree_pt);
 				retrieve_subtree(v, state); // delete the subtree in normal trees
-				unordered_set<unsigned long long> necessary_nodes;
-				retrieve_subtree_lm(v, state, tree_pt, necessary_nodes); // delete subtree in LM trees, and necessary nodes which may be missing in the LM tree building.
-				fulfill_new_lm_tree(tree_pt, necessary_nodes); // fulfill the LM tree with necessary nodes.
-				necessary_nodes.clear();
-				landmarks.insert(info); 
+				retrieve_subtree_lm(v, state, tree_pt); // delete subtree in LM trees, and necessary nodes which may be missing in the LM tree building.
+				landmarks.insert(info);
 			}
 			else // else we need to trade off the benefit and cost
 			{
 				tree_pt = build_lm_tree(v, state);  // we build the LM tree first. 
 				unsigned int node_cost = tree_pt->node_cnt; // cost is the LM tree size
-				unsigned int node_benefit = retrieve_subtree_lm_preview(v, state); 
+				unsigned int node_benefit = retrieve_subtree_lm_preview(v, state);
 				node_benefit += retrieve_subtree_preview(v, state); // benefit is the size of subtrees.
 				if (node_benefit < node_cost * benefit_threshold) // if the benefit is not enough, delete the LM tree we just build
 					delete tree_pt;
@@ -1421,11 +1245,8 @@ public:
 				{
 					forests[info] = tree_pt;		// add the LM tree into forest.
 					build_v2l_index(tree_pt); // build reverse index
-					retrieve_subtree(v, state);  
-					unordered_set<unsigned long long> necessary_nodes;
-					retrieve_subtree_lm(v, state, tree_pt, necessary_nodes); // delete subtrees and collect necessary nodes
-					fulfill_new_lm_tree(tree_pt, necessary_nodes); // fulfill the LM tree
-					necessary_nodes.clear();
+					retrieve_subtree(v, state);
+					retrieve_subtree_lm(v, state, tree_pt); // delete subtrees and collect necessary nodes
 					landmarks.insert(info);
 				}
 			}
@@ -1445,11 +1266,11 @@ public:
 		cout << "result pair size: " << result_pairs.size() << ", memory: " << ((double)(um_size + result_pairs.size() * 24 + result_pairs.bucket_count() * 8) / (1024 * 1024)) << endl;   // number of result vertex pairs, and the memory used to store these results.
 		fout << "result pair size: " << result_pairs.size() << ", memory: " << ((double)(um_size + result_pairs.size() * 24 + result_pairs.bucket_count() * 8) / (1024 * 1024)) << endl;
 
-		cout<<"landmark number "<<landmarks.size()<<" tree number "<<forests.size()<<" snapshot graph vertice number "<<g->get_vertice_num()<<endl; 
-		fout<<"landmark number "<<landmarks.size()<<" tree number "<<forests.size()<<" snapshot graph vertice number "<<g->get_vertice_num()<<endl;
-		
+		cout << "landmark number " << landmarks.size() << " tree number " << forests.size() << " snapshot graph vertice number " << g->get_vertice_num() << endl;
+		fout << "landmark number " << landmarks.size() << " tree number " << forests.size() << " snapshot graph vertice number " << g->get_vertice_num() << endl;
+
 		unsigned int tree_size = 16 + m_size * 2 + us_size; // size of statistics and pointers in a tree
-		double tree_memory = ((double)(um_size + forests.bucket_count() * 8 + forests.size() * (24+tree_size)) / (1024 * 1024)); // forest is a unordered_map (um), each KV is 16 byte, 8 byte long long + 8 byte pointer,
+		double tree_memory = ((double)(um_size + forests.bucket_count() * 8 + forests.size() * (24 + tree_size)) / (1024 * 1024)); // forest is a unordered_map (um), each KV is 16 byte, 8 byte long long + 8 byte pointer,
 		// plus a pointer pointing to the next KV in the list. Each bucket has a pointer pointing to the head of the value list in this bucket. Memory of following us is computed similarly. size of statistics of each tree is also calculated here.
 		double global_lm_memory = ((double)(us_size + landmarks.size() * 16 + landmarks.bucket_count() * 8) / (1024 * 1024)); // size of the unordered_set (us) landmarks, each value is a 8 byte long long, associated with a pointer pointing to next value in the list.
 		// each bucket has a pointer pointing to the head of the value list in this bucket. Memory of following us is computed similarly.
@@ -1460,7 +1281,7 @@ public:
 		for (unordered_map<unsigned long long, RPQ_tree*>::iterator iter = forests.begin(); iter != forests.end(); iter++)
 		{
 			RPQ_tree* tree_pt = iter->second;
-			lm_set_memory += tree_pt->landmarks.bucket_count() * 8 + tree_pt->landmarks.size() * 16;
+			lm_set_memory += tree_pt->timed_landmarks.bucket_count() * 8 + tree_pt->timed_landmarks.size() * 24;
 			time_info_memory += tree_pt->time_info.size() * 40; // first layer is a map, and each KV is 24 byte, 3 pointer is associated (parent, left child, right child)
 			for (map<unsigned int, time_info_index*>::iterator iter2 = tree_pt->time_info.begin(); iter2 != tree_pt->time_info.end(); iter2++) {
 				time_info_memory += um_size + iter2->second->index.bucket_count() * 8 + iter2->second->index.size() * 16; // second layer is a um, and each KV is 8 byte.
@@ -1472,7 +1293,7 @@ public:
 			double node_memory = 0;
 			node_memory += tree_pt->node_map.size() * 40; // first layer of the node map is a map
 			for (map<unsigned int, tree_node_index*>::iterator iter2 = tree_pt->node_map.begin(); iter2 != tree_pt->node_map.end(); iter2++)
-				node_memory += um_size + iter2->second->index.bucket_count() * 8 + iter2->second->index.size() * (24+48); // second layer is a um, each KV is 16 byte, memory of the tree node is also computed here.
+				node_memory += um_size + iter2->second->index.bucket_count() * 8 + iter2->second->index.size() * (24 + 48); // second layer is a um, each KV is 16 byte, memory of the tree node is also computed here.
 			if (lm_root)
 				lm_node_memory += node_memory;
 			else
@@ -1567,7 +1388,7 @@ public:
 		}
 	}
 
-	void erase_lm_tree_node(RPQ_tree* tree_pt, tree_node* child, vector<unsigned long long>& deleted) // this function deletes subtree rooted at the given node (child) in an LM tree (tree_pt), different from above,
+	void erase_lm_tree_node(RPQ_tree* tree_pt, tree_node* child) // this function deletes subtree rooted at the given node (child) in an LM tree (tree_pt), different from above,
 		// we need to record the deleted nodes with a vectore deleted, we will use these nodes in a backward search later to delete time info map in precursors of this LM tree in the dependency graph.
 	{
 		queue<tree_node*> q;
@@ -1577,7 +1398,6 @@ public:
 		{
 			tree_node* tmp = q.front();
 			q.pop();
-			deleted.push_back(merge_long_long(tmp->node_ID, tmp->state));
 			for (tree_node* cur = tmp->child; cur; cur = cur->brother)
 				q.push(cur);
 			tree_pt->remove_node(tmp);
@@ -1586,56 +1406,6 @@ public:
 		}
 	}
 
-
-	void expire_backtrack(unsigned int v, unsigned int state, unsigned int expired_time, vector<unsigned long long>& deleted_results, unordered_set<unsigned long long>& visited)
-		// this function performs a backward search from a landmark £¨v, state). Deleted_results are the nodes where the path from landmark to them has expired. entry of these nodes in the time info map of its precursor LM trees
-		// may also expire, we need to check them in the search, visited records the visited LM trees, in case of repeated check. expired_time is the tail of the silding window, entries with timestamp smaller than it expire.
-	{
-		map<unsigned int, lm_info_index*>::iterator iter = v2l_index.find(state);
-		if (iter != v2l_index.end())
-		{
-			unordered_map<unsigned int, tree_info*>::iterator tree_iter = iter->second->tree_index.find(v);
-			if (tree_iter != iter->second->tree_index.end()) {
-				tree_info* tmp = tree_iter->second;
-				while (tmp)
-				{
-					RPQ_tree* tree_pt = tmp->tree;
-					unsigned long long tree_info = merge_long_long(tree_pt->root->node_ID, tree_pt->root->state);
-					if (visited.find(tree_info) != visited.end())
-					{
-						tmp = tmp->next;
-						continue;
-					}
-					visited.insert(tree_info);
-					vector<unsigned long long> tracked_nodes;
-					for (int i = 0; i < deleted_results.size(); i++)
-					{
-						unsigned long long dst_info = deleted_results[i];
-						unsigned int dst_state = (dst_info & 0xFFFFFFFF);
-						unsigned int dst_ID = (dst_info >> 32);
-						if (tree_pt->time_info.find(dst_state) != tree_pt->time_info.end())
-						{
-							if (tree_pt->time_info[dst_state]->index.find(dst_ID) != tree_pt->time_info[dst_state]->index.end())
-							{
-								if (tree_pt->time_info[dst_state]->index[dst_ID] < expired_time) { // check if the time info entry of a node is expired.
-									tree_pt->time_info[dst_state]->index.erase(dst_ID);
-									shrink(tree_pt->time_info[dst_state]->index);
-								}
-								if (tree_pt->time_info[dst_state]->index.empty())
-									tree_pt->time_info.erase(dst_state);
-							}
-						}
-						tracked_nodes.push_back(dst_info); // it should be noted that we need to futher backtrack up with all nodes in deleted_results, otherwise errors will happen, some expired time info entries will be left
-						// this is caused by circles in the depdency graph.
-					}
-					if (!tracked_nodes.empty())
-						expire_backtrack(tree_pt->root->node_ID, tree_pt->root->state, expired_time, tracked_nodes, visited);
-					tracked_nodes.clear();
-					tmp = tmp->next;
-				}
-			}
-		}
-	}
 	void expire_per_lm_tree(unsigned int v, unsigned int state, RPQ_tree* tree_pt, unsigned int expired_time) // carry out expiration in an LM tree tree_pt given a possibly expired node (v, state) and tail of sliding window expired_time. 
 	{
 		if (tree_pt->node_map.find(state) != tree_pt->node_map.end())
@@ -1643,66 +1413,7 @@ public:
 			if (tree_pt->node_map[state]->index.find(v) != tree_pt->node_map[state]->index.end()) {
 				tree_node* dst_pt = tree_pt->node_map[state]->index[v];
 				if (dst_pt->timestamp < expired_time) { // if this node indeex expireds, we need to erase its subtree and carry out expire_backtrack
-					vector<unsigned long long> erased;
-					vector<unsigned long long> deleted;
-					unordered_set<unsigned long long> visited;
-					erase_lm_tree_node(tree_pt, dst_pt, erased);
-					if (!erased.empty()) {
- 						for (unsigned int i = 0; i < erased.size(); i++)
-						{
-							unsigned long long dst_info = erased[i];
-							if (landmarks.find(dst_info) != landmarks.end()) // if a landmark is deleted, we need to check if it will influence the time info map
-							{
-								if (forests.find(dst_info) != forests.end())
-								{
-									RPQ_tree* dst_tree = forests[dst_info];
-									for (map<unsigned int, time_info_index*>::iterator dst_iter = dst_tree->time_info.begin(); dst_iter != dst_tree->time_info.end(); dst_iter++)
-									{
-										unsigned int state = dst_iter->first;
-										if (tree_pt->time_info.find(state) == tree_pt->time_info.end())
-											continue;
-										time_info_index* target_index = tree_pt->time_info[state];
-										// scan the time info in the LM tree of the deleted landmark, as the paths to nodes in this time info map passing the deleted landmark expire, time info of these nodes 
-										// in tree_pt may also expire, we need to check, and record the expired ones.
-										for (unordered_map<unsigned int, unsigned int>::iterator time_iter = dst_iter->second->index.begin(); time_iter != dst_iter->second->index.end(); time_iter++)
-										{
-											if (target_index->index.find(time_iter->first) != target_index->index.end())
-											{
-												if (target_index->index[time_iter->first] < expired_time) {
-													target_index->index.erase(time_iter->first);
-													deleted.push_back(merge_long_long(time_iter->first, state));
-												}
-											}
-										}
-										shrink(target_index->index);
-										if (target_index->index.empty())
-											tree_pt->time_info.erase(state);
-									}
-								}
-							}
-							unsigned int dst_ID = (dst_info >> 32);
-							unsigned int dst_state = (dst_info & 0xFFFFFFFF);
-							if (tree_pt->time_info.find(dst_state) != tree_pt->time_info.end()) {  // check time info of this deleted node.
-								if (tree_pt->time_info[dst_state]->index.find(dst_ID) != tree_pt->time_info[dst_state]->index.end())
-								{
-									if (tree_pt->time_info[dst_state]->index[dst_ID] < expired_time) {
-										tree_pt->time_info[dst_state]->index.erase(dst_ID);
-										shrink(tree_pt->time_info[dst_state]->index);
-										if (tree_pt->time_info[dst_state]->index.empty())
-											tree_pt->time_info.erase(dst_state);
-										deleted.push_back(dst_info);
-									}
-								}
-							}
-
-						}
-						erased.clear();
-						visited.insert(merge_long_long(tree_pt->root->node_ID, tree_pt->root->state));
-						if (!deleted.empty())
-							expire_backtrack(tree_pt->root->node_ID, tree_pt->root->state, expired_time, deleted, visited);
-						deleted.clear();
-						visited.clear();
-					}
+					erase_lm_tree_node(tree_pt, dst_pt);
 				}
 			}
 		}
@@ -1803,11 +1514,8 @@ public:
 					}
 				}
 			}
-			//time_info_expire(expire_time);
 		}
 
 	}
-
-
 
 };

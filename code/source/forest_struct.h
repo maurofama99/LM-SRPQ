@@ -7,6 +7,7 @@
 #include<string>
 #include <queue>
 #include<stack>
+#include<assert.h>
 #include "StreamingGraph.h"
 #define um_shrink_threshold 2
 #define merge_long_long(s, d) (((unsigned long long)s<<32)|d)
@@ -81,6 +82,8 @@ public:
 	map<unsigned int, tree_node_index*> node_map; // map from a state to the relevant node index. In the node index the reverse map from vertex ID to the tree node pointer is stored. The state in the first layer an the vertex ID in the second layer form a product graph node ID 
 	map<unsigned int, time_info_index*> time_info; // TI map, used by LM-SRPQ, but not by S-PATH. Maps a state to the relevant time_info_index. In each the reverse index we map vertex ID to the timestamp in TI map.The state in the first layer an the vertex ID in the second layer form a product graph node ID 
 	unordered_set<unsigned long long> landmarks; // set of landmarks contained in this tree. Merge the vertex ID and state with merge_long_long. Used by LM-SRPQ.
+	unordered_map<unsigned long long, unsigned int> timed_landmarks; // this structure is used to directly get the landmarks and the timestamp of this landmark in the spanning tree. 
+	// This structure is used when we need to traverse forward in the dependency graph, and thus is only needed in the dependency-forest version of LM-SRPQ
 	int node_cnt;
 
 	RPQ_tree()
@@ -169,9 +172,14 @@ public:
 			}
 		}
 	}
+
 	void add_lm(unsigned long long lm) // add a node into the LM set.
 	{
 		landmarks.insert(lm);
+	}
+	void add_timed_lm(unsigned long long lm, unsigned int timestamp)
+	{
+		timed_landmarks[lm] = timestamp;
 	}
 	void separate_node(tree_node* child) // separate a node from the spanning tree 
 	{
@@ -566,3 +574,220 @@ bool operator>(const vertex_score& v1, const vertex_score& v2)
 {
 	return v1.score > v2.score;
 }
+
+struct pg_edge
+{
+	unsigned int src;
+	unsigned int src_state;
+	unsigned int dst;
+	unsigned int dst_state;
+	unsigned int timestamp;
+	pg_edge* src_prev;
+	pg_edge* src_next;	// cross list, maintaining the graph structure
+	pg_edge* dst_next;
+	pg_edge* dst_prev;
+	pg_edge(unsigned int src_id_ = 0, unsigned int src_state_ = 0, unsigned int dst_id_ = 0, unsigned int dst_state_ = 0, unsigned int timestamp_ = 0)
+	{
+		src = src_id_;
+		dst = dst_id_;
+		src_state = src_state_;
+		dst_state = dst_state_;
+		timestamp = timestamp_;
+		src_next = NULL;
+		src_prev = NULL;
+		dst_next = NULL;
+		dst_prev = NULL;
+	}
+};
+
+struct pg_node
+{
+	unsigned int state;
+	unsigned int id;
+	pg_edge* src_list;
+	pg_edge* dst_list;
+	pg_node(unsigned int id_ =0 , unsigned int state_ = 0)
+	{
+		id = id_;
+		state = state_;
+		src_list = NULL;
+		dst_list = NULL;
+	}
+};
+class product_graph
+{
+public:
+	unordered_map<unsigned long long, pg_node> g;
+	unsigned int edge_cnt = 0;
+	product_graph()
+	{
+		g.clear();
+	}
+	~product_graph()
+	{
+		for (unordered_map<unsigned long long, pg_node>::iterator iter = g.begin(); iter != g.end(); iter++)
+		{
+			pg_edge* tmp = iter->second.src_list;
+			while (tmp)
+			{
+				pg_edge* cur = tmp;
+				tmp = tmp->src_next;
+				delete cur;
+			}
+			g.clear();
+		}
+	}
+	void insert_edge(unsigned int src, unsigned int src_state, unsigned int dst, unsigned int dst_state, unsigned int timestamp)
+	{
+		unsigned long long src_info = merge_long_long(src, src_state);
+		unsigned long long dst_info = merge_long_long(dst, dst_state);
+		if (g.find(src_info) != g.end())
+		{
+			pg_edge* tmp = g[src_info].src_list;
+			while (tmp)
+			{
+				if (tmp->dst == dst && tmp->dst_state == dst_state)
+				{
+					tmp->timestamp = timestamp;
+					return;
+				}
+				tmp = tmp->src_next;
+			}
+		}
+		else {
+			g[src_info].id = src;
+			g[src_info].state = src_state;
+		}
+
+		edge_cnt++;
+		pg_edge* tmp = new pg_edge(src, src_state, dst, dst_state, timestamp);
+		tmp->src_next = g[src_info].src_list;
+		if (g[src_info].src_list)
+			g[src_info].src_list->src_prev = tmp;
+		g[src_info].src_list = tmp;
+		if (g.find(dst_info) != g.end())
+		{
+			tmp->dst_next = g[dst_info].dst_list;
+			if (g[dst_info].dst_list)
+				g[dst_info].dst_list->dst_prev = tmp;
+			g[dst_info].dst_list = tmp;
+		}
+		else
+		{
+			g[dst_info].id = dst;
+			g[dst_info].state = dst_state;
+			g[dst_info].dst_list = tmp;
+		}
+	}
+	bool expire_edge(unsigned int src, unsigned int src_state, unsigned int dst, unsigned int dst_state, unsigned int expired_time)
+	{
+		unsigned long long src_info = merge_long_long(src, src_state);
+		unsigned long long dst_info = merge_long_long(dst, dst_state);
+		if (g.find(src_info) != g.end())
+		{
+			pg_edge* tmp = g[src_info].src_list;
+			while (tmp)
+			{
+				if(tmp->dst==dst&&tmp->dst_state==dst_state)
+				{
+					if (tmp->timestamp < expired_time)
+					{
+						if (g[src_info].src_list == tmp)
+						{
+							if (tmp->src_next) {
+								tmp->src_next->src_prev = NULL;
+								g[src_info].src_list = tmp->src_next;
+							}
+							else
+							{
+								g[src_info].src_list = NULL;
+								if (!g[src_info].dst_list)
+									g.erase(src_info);
+							}
+						}
+						else
+						{
+							if(tmp->src_prev)
+								tmp->src_prev->src_next = tmp->src_next;
+							if (tmp->src_next)
+								tmp->src_next->src_prev = tmp->src_prev;
+						}
+						assert(g.find(dst_info) != g.end());
+						if (g[dst_info].dst_list == tmp)
+						{
+							if (tmp->dst_next) {
+								tmp->dst_next->dst_prev = NULL;
+								g[dst_info].dst_list = tmp->dst_next;
+							}
+							else
+							{
+								g[dst_info].dst_list = NULL;
+								if (!g[dst_info].src_list)
+									g.erase(dst_info);
+							}
+						}
+						else
+						{
+							if (tmp->dst_prev)
+								tmp->dst_prev->dst_next = tmp->dst_next;
+							if (tmp->dst_next)
+								tmp->dst_next->dst_prev = tmp->dst_prev;
+						}
+						delete tmp;
+						edge_cnt--;
+						return true;
+					}
+					return false;
+				}
+				tmp = tmp->src_next;
+			}
+			return false;
+		}
+		return false;
+	}
+
+	void get_successor(unsigned int src, unsigned int src_state, vector < pair<unsigned long long, unsigned int>>& suc)
+	{
+		unsigned long long src_info = merge_long_long(src, src_state);
+		if (g.find(src_info) != g.end())
+		{
+			pg_edge* tmp = g[src_info].src_list;
+			while (tmp)
+			{
+				suc.push_back(make_pair(merge_long_long(tmp->dst, tmp->dst_state), tmp->timestamp));
+				tmp = tmp->src_next;
+			}
+		}
+	}
+
+	void get_precursor(unsigned int dst, unsigned int dst_state, vector < pair<unsigned long long, unsigned int>>& pre)
+	{
+		unsigned long long dst_info = merge_long_long(dst, dst_state);
+		if (g.find(dst_info) != g.end())
+		{
+			pg_edge* tmp = g[dst_info].dst_list;
+			while (tmp)
+			{
+				pre.push_back(make_pair(merge_long_long(tmp->src, tmp->src_state), tmp->timestamp));
+				tmp = tmp->dst_next;
+			}
+		}
+	}
+	
+};
+
+struct time_compare
+{
+	bool operator()(tree_node* &t1, tree_node* &t2)
+	{
+		return t1->timestamp<t2->timestamp;
+	}
+};
+
+struct pair_compare
+{
+	bool operator()(pair<unsigned long long, unsigned int>& p1, pair<unsigned long long, unsigned int> &p2)
+	{
+		return p1.second<p2.second;
+	}
+};

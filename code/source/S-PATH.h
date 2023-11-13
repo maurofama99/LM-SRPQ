@@ -111,11 +111,11 @@ public:
 	{
 		unsigned int root_ID = tree_pt->root->node_ID;
 		unordered_map<unsigned int, unsigned int> updated_results;
-		queue<tree_node*> q;
+		priority_queue<tree_node*, vector<tree_node*>, time_compare> q;
 		q.push(expand_node);
 		while (!q.empty())
 		{
-			tree_node* tmp = q.front();
+			tree_node* tmp = q.top();
 			q.pop();
 			unsigned long long tmp_info = merge_long_long(tmp->node_ID, tmp->state);
 			if (aut->check_final_state(tmp->state)) {			// if this is a final state, we need to update the result set, we record it first and at last carry out the update togther
@@ -369,6 +369,61 @@ public:
 		fout << endl;
 
 	}
+
+	void print_tree(unsigned int ID, unsigned int state)
+	{
+
+		unordered_map<unsigned long long, RPQ_tree*>::iterator iter = forests.find(merge_long_long(ID, state));
+		if (iter != forests.end()) {
+			tree_node* tmp = iter->second->root;
+			queue<tree_node*> q;
+			q.push(tmp);
+			int cnt = 0;
+			while (!q.empty())
+			{
+				tmp = q.front();
+				q.pop();
+				cnt++;
+				if (tmp->lm)
+					cout << "lm node " << tmp->node_ID << ' ' << tmp->state << ' ' << tmp->timestamp << ' ' << tmp->edge_timestamp << endl;
+				else
+					cout << "node " << tmp->node_ID << ' ' << tmp->state << ' ' << tmp->timestamp << ' ' << tmp->edge_timestamp << endl;
+				tmp = tmp->child;
+				cout << "child: " << endl;
+				while (tmp)
+				{
+					cout << tmp->node_ID << " " << tmp->state << endl;
+					q.push(tmp);
+					tmp = tmp->brother;
+				}
+				cout << endl;
+			}
+			cout << endl << endl;
+
+		}
+	}
+
+	void print_path(unsigned int ID, unsigned int root_state, unsigned int dst, unsigned int dst_state)
+	{
+		unordered_map<unsigned long long, RPQ_tree*>::iterator iter = forests.find(merge_long_long(ID, root_state));
+		if (iter != forests.end()) {
+			if (iter->second->node_map.find(dst_state) != iter->second->node_map.end()) {
+				if (iter->second->node_map[dst_state]->index.find(dst) != iter->second->node_map[dst_state]->index.end()) {
+					tree_node* tmp = iter->second->node_map[dst_state]->index[dst];
+					while (tmp)
+					{
+						cout << tmp->node_ID << ' ' << tmp->state << ' ' << tmp->edge_timestamp << ' ' << tmp->timestamp << ' ';
+						if (tmp->parent)
+							cout << tmp->parent->node_ID << ' ' << tmp->parent->state << endl;
+						else
+							cout << "NULL" << endl;
+						tmp = tmp->parent;
+					}
+				}
+			}
+		}
+	}
+
 	
 
 };
