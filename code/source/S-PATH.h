@@ -7,7 +7,7 @@
 #include<string>
 #include <queue>
 #include<stack>
-#include<stdlib.h> 
+#include<cstdlib>
 #include<algorithm>
 #include "forest_struct.h"
 #include "automaton.h"
@@ -21,7 +21,13 @@ using namespace std;
 class RPQ_forest
 {
 public:
-	streaming_graph* g; // pointer to the streaming graph .
+
+	streaming_graph* g;
+    streaming_graph *getSnapshotGraph() const {
+        return g;
+    }
+
+    // pointer to the streaming graph .
 	automaton* aut; // pointer to the DFA of the regular expression. 
 	unordered_map<unsigned long long, RPQ_tree*> forests; // map from product graph node to tree pointer
 	map<unsigned int, tree_info_index*> v2t_index; // reverse index that maps a graph vertex to the the trees that contains it. The first layer maps state to tree_info_index, and the second layer maps vertex ID to list of trees contains this node
@@ -48,10 +54,10 @@ public:
 	void update_result(unordered_map<unsigned int, unsigned int>& updated_nodes, unsigned int root_ID) // update the result set, first of a KV in the um is a vertex ID v, and second is a timestamp t, update timestamp of (root v) pair
 	// to t
 	{
-		for (unordered_map<unsigned int, unsigned int>::iterator it = updated_nodes.begin(); it != updated_nodes.end(); it++)
+		for (auto & updated_node : updated_nodes)
 		{
-			unsigned int dst = it->first;
-			unsigned int time = it->second;
+			unsigned int dst = updated_node.first;
+			unsigned int time = updated_node.second;
 			if (dst == root_ID) // self-join is omitted
 				continue;
 			unsigned long long result_pair = (((unsigned long long)root_ID << 32) | dst);
@@ -64,10 +70,10 @@ public:
 
 	void update_result(vector<pair<unsigned int, unsigned int> >& updated_nodes, unsigned int root_ID) // similar as above, but the vertex-timestamp pairs are stored with a vector.
 	{
-		for (int i = 0; i < updated_nodes.size(); i++)
+		for (auto & updated_node : updated_nodes)
 		{
-			unsigned int dst = updated_nodes[i].first;
-			unsigned int time = updated_nodes[i].second;
+			unsigned int dst = updated_node.first;
+			unsigned int time = updated_node.second;
 			if (dst == root_ID)
 				continue;
 			unsigned long long result_pair = (((unsigned long long)root_ID << 32) | dst);
@@ -81,7 +87,7 @@ public:
 
 	void add_index(RPQ_tree* tree_pt, unsigned int v, unsigned int state, unsigned int root_ID) // modify the reverse index to record the presence of a node in a tree. 
 	{
-		map<unsigned int, tree_info_index*>::iterator iter = v2t_index.find(state);
+		auto iter = v2t_index.find(state);
 		if (iter == v2t_index.end())
 			v2t_index[state] = new tree_info_index;
 		v2t_index[state]->add_node(tree_pt, v, root_ID);
@@ -99,7 +105,7 @@ public:
 
 	void delete_index(unsigned int v, unsigned int state, unsigned int root) // modify the reverse index when a node is not in a spanning tree any more. 
 	{
-		map<unsigned int, tree_info_index*>::iterator iter = v2t_index.find(state);
+		auto iter = v2t_index.find(state);
 		if (iter != v2t_index.end())
 		{
 			iter->second->delete_node(v, root);
@@ -219,7 +225,7 @@ public:
 	{
 		if (time <= 0)
 			return;
-		for (unordered_map<unsigned long long, unsigned int>::iterator iter = result_pairs.begin(); iter != result_pairs.end();)
+		for (auto iter = result_pairs.begin(); iter != result_pairs.end();)
 		{
 			if (iter->second < time) {
 				iter = result_pairs.erase(iter);
@@ -263,28 +269,29 @@ public:
 
 	void expire(int current_time) // given current time, delete the expired tree nodes and results.
 	{
+        // TODO extract expire time from the single nodes
 		int expire_time = current_time - g->window_size; // compute the threshold of expiration.
 		results_update(expire_time); // delete expired results
 		vector<edge_info> deleted_edges;
 		g->expire(current_time, deleted_edges); // delete expired graph edges.
 		unordered_set<unsigned long long> visited; 
-		for (int i = 0; i < deleted_edges.size(); i++)
+		for (auto & deleted_edge : deleted_edges)
 		{
-			unsigned int dst = deleted_edges[i].d;
-			unsigned int label = deleted_edges[i].label; // for each expired edge, find its dst node. All the expired nodes in the spanning forest must be in a subtree of such dst node.
+			unsigned int dst = deleted_edge.d;
+			unsigned int label = deleted_edge.label; // for each expired edge, find its dst node. All the expired nodes in the spanning forest must be in a subtree of such dst node.
 			vector<pair<int, int>> vec;
 			aut->get_possible_state(label, vec); // get possible states of the dst node.
-			for (int j = 0; j < vec.size(); j++) {
-				int dst_state = vec[j].second;
+			for (auto & j : vec) {
+				int dst_state = j.second;
 				if (dst_state == -1)
 					continue;
 				if(visited.find(merge_long_long(dst, dst_state))!=visited.end())
 					continue;
 				visited.insert(merge_long_long(dst,dst_state)); // record the checked dst node, in case of repeated process.
-				map<unsigned int, tree_info_index*>::iterator iter = v2t_index.find(dst_state);
+				auto iter = v2t_index.find(dst_state);
 				if (iter != v2t_index.end())
 				{
-					unordered_map<unsigned int, tree_info*>::iterator tree_iter = iter->second->tree_index.find(dst);
+					auto tree_iter = iter->second->tree_index.find(dst);
 					if (tree_iter != iter->second->tree_index.end())
 					{
 						vector<RPQ_tree*> tree_to_delete;

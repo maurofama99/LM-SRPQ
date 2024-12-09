@@ -6,7 +6,7 @@
 #include<map>
 #include<unordered_map>
 #include<unordered_set>
-#include <assert.h>
+#include <cassert>
 using namespace std;
 
 // this streaming graph class suppose that there may be duplicate edges in the streaming graph. It means the same edge (s, d, label) may appear multiple times in the stream.
@@ -18,11 +18,11 @@ struct timed_edge // this is the structure to maintain the time sequence list. I
 	timed_edge* next;
 	timed_edge* prev; // the two pointers to maintain the list;
 	sg_edge* edge_pt;	// information of the tuple, including src, dst, edge label and timestamp;
-	timed_edge(sg_edge* edge_pt_ = NULL)
+	explicit timed_edge(sg_edge* edge_pt_ = nullptr)
 	{
 		edge_pt = edge_pt_;
-		next = NULL;
-		prev = NULL;
+		next = nullptr;
+		prev = nullptr;
 	}
 };
 
@@ -40,6 +40,7 @@ struct edge_info // the structure as query result, include all the information o
 	}
 };
 
+// TODO Add expiration timestamp
 class sg_edge
 {
 public:
@@ -57,20 +58,20 @@ public:
 		d = dst;
 		timestamp = time;
 		label = label_;
-		src_next = NULL;
-		src_prev = NULL;
-		dst_next = NULL;
-		dst_prev = NULL;
-		time_pos = NULL;
+		src_next = nullptr;
+		src_prev = nullptr;
+		dst_next = nullptr;
+		dst_prev = nullptr;
+		time_pos = nullptr;
 	}
 	~sg_edge()
-	{}
+	= default;
 };
 
 struct neighbor_list  // this struct serves as the head pointed of the neighbor list of a vertex
 {
 	sg_edge* list_head;
-	neighbor_list(sg_edge* head = NULL)
+	explicit neighbor_list(sg_edge* head = nullptr)
 	{
 		list_head = head;
 	}
@@ -87,11 +88,11 @@ public:
 	timed_edge* time_list_head; // head of the time sequence list;
 	timed_edge* time_list_tail;// tial of the time sequence list
 
-	streaming_graph(int w) {
+	explicit streaming_graph(int w) {
 		edge_num = 0;
 		window_size = w;
-		time_list_head = NULL;
-		time_list_tail = NULL;
+		time_list_head = nullptr;
+		time_list_tail = nullptr;
 	}
 	~streaming_graph()
 	{
@@ -119,7 +120,7 @@ public:
 	}
 	void add_timed_edge(timed_edge* cur) // add an edge to the time sequence list. As edges arrive in time order, it will be added to the tail.
 	{
-		cur->next = NULL;
+		cur->next = nullptr;
 		cur->prev = time_list_tail;
 		if (!time_list_head) // if the list is empty, then this is the head.
 			time_list_head = cur;
@@ -141,10 +142,10 @@ public:
 
 	bool insert_edge(int s, int d, int label, int timestamp) // insert an edge in the streaming graph, bool indicates if it is a new edge (not appear before)
 	{
-		timed_edge* cur = new timed_edge; // create a new timed edge and insert it to the tail of the time sequence list, as in a streaming graph the inserted edge is always the latest 
+		auto* cur = new timed_edge; // create a new timed edge and insert it to the tail of the time sequence list, as in a streaming graph the inserted edge is always the latest
 		add_timed_edge(cur);
 
-		unordered_map<unsigned int, neighbor_list>::iterator it = g.find(s);
+		auto it = g.find(s);
 
 		if (it != g.end())
 		{
@@ -169,7 +170,7 @@ public:
 			if(it->second.list_head)
 				it->second.list_head->src_prev = tmp;
 			it->second.list_head = tmp;
-			unordered_map<unsigned int, neighbor_list>::iterator it2 = rg.find(d);
+			auto it2 = rg.find(d);
 			if (it2 != rg.end())
 			{
 				tmp->dst_next = it2->second.list_head;  // add it to the front of the precursor list of the dst node
@@ -185,11 +186,11 @@ public:
 		else // else the source vertex does not show up in the graph, we need to add a neighbor list, and add the new edge to the neighbor list.
 		{
 			edge_num++;
-			sg_edge* tmp = new sg_edge(s, d, label,timestamp);
+			auto* tmp = new sg_edge(s, d, label,timestamp);
 			tmp->time_pos = cur;
 			cur->edge_pt = tmp;
 			g[s] = neighbor_list(tmp);
-			unordered_map<unsigned int, neighbor_list>::iterator it2 = rg.find(d);
+			auto it2 = rg.find(d);
 			if (it2 != rg.end())
 			{
 				tmp->dst_next = it2->second.list_head;
@@ -214,10 +215,10 @@ public:
 		}
 		else  // otherwise we need to change the head of the nighbor list to the next edge
 		{
-			unordered_map<unsigned int, neighbor_list>::iterator it = g.find(edge_to_delete->s);
+			auto it = g.find(edge_to_delete->s);
 			if(edge_to_delete->src_next){
 				it->second.list_head = edge_to_delete->src_next;
-				edge_to_delete->src_next->src_prev = NULL;
+				edge_to_delete->src_next->src_prev = nullptr;
 			}
 			else  // if there is no next edge, this neighbor list is empty, and we can delete it.
 			g.erase(it);
@@ -231,16 +232,15 @@ public:
 		}
 		else
 		{
-			unordered_map<unsigned int, neighbor_list>::iterator it = rg.find(edge_to_delete->d);
+			auto it = rg.find(edge_to_delete->d);
 			if(edge_to_delete->dst_next){
 				it->second.list_head = edge_to_delete->dst_next;
-				edge_to_delete->dst_next->dst_prev = NULL;
+				edge_to_delete->dst_next->dst_prev = nullptr;
 			}
 			else
 				rg.erase(it);
 		}
-		return;
-	}
+    }
 
 	void expire(unsigned int timestamp, vector<edge_info >& deleted_edges) // this function is used to find all expired edges and remove them from the graph.
 	{
@@ -250,20 +250,20 @@ public:
 			if (cur->timestamp + window_size >= timestamp) // The later edges are still in the sliding window, and we can stop the expiration.
 				break;
 			expire_edge(cur);
-			deleted_edges.push_back(edge_info(cur->s, cur->d, cur->timestamp, cur->label)); // we record the information of expired edges. This information will be used to find expired tree nodes in S-PATH or LM-SRPQ.
+			deleted_edges.emplace_back(cur->s, cur->d, cur->timestamp, cur->label); // we record the information of expired edges. This information will be used to find expired tree nodes in S-PATH or LM-SRPQ.
 			timed_edge* tmp = time_list_head;
 			time_list_head = time_list_head->next;	// delete the time sequence list unit
 			if (time_list_head)
-				time_list_head->prev = NULL;
+				time_list_head->prev = nullptr;
 			delete tmp;
 			delete cur;
 		}
 		if (!time_list_head) // if the list is empty, the tail pointer should also be NULL;
-			time_list_tail = NULL;
+			time_list_tail = nullptr;
 	}
 	void get_suc(unsigned int s, int label, vector<unsigned int>& sucs) // get the successors of s, connected by edges with given label 
 	{
-		unordered_map<unsigned int, neighbor_list>::iterator it = g.find(s);
+		auto it = g.find(s);
 		if (it != g.end())
 		{
 			sg_edge* tmp = it->second.list_head;
@@ -274,11 +274,11 @@ public:
 				tmp = tmp->src_next;
 			}
 		}
-		return;
-	}
+    }
+
 	void get_prev(unsigned int d, int label, vector<unsigned int>& prevs) // get the precursors of d, connected by edges with given label 
 	{
-		unordered_map<unsigned int, neighbor_list>::iterator it = rg.find(d);
+		auto it = rg.find(d);
 		if (it != rg.end())
 		{
 			sg_edge* tmp = it->second.list_head;
@@ -289,30 +289,30 @@ public:
 				tmp = tmp->dst_next;
 			}
 		}
-		return;
-	}
+    }
+
 	void get_all_suc(unsigned int s, vector<pair<unsigned int, unsigned int> >& sucs) // get all the successors, each pair is successor node ID + edge label
 	{
-		unordered_map<unsigned int, neighbor_list>::iterator it = g.find(s);
+		auto it = g.find(s);
 		if (it != g.end())
 		{
 			sg_edge* tmp = it->second.list_head;
 			while (tmp)
 			{
-				sucs.push_back(make_pair(tmp->d, tmp->label));
+				sucs.emplace_back(tmp->d, tmp->label);
 				tmp = tmp->src_next;
 			}
 		}
 	}
 	void get_all_prev(unsigned int d, vector<pair<unsigned int, unsigned int> >& prevs)// get all the precursors, each pair is precursor node ID + edge label
 	{
-		unordered_map<unsigned int, neighbor_list>::iterator it = rg.find(d);
+		auto it = rg.find(d);
 		if (it != rg.end())
 		{
 			sg_edge* tmp = it->second.list_head;
 			while (tmp)
 			{
-				prevs.push_back(make_pair(tmp->s, tmp->label));
+				prevs.emplace_back(tmp->s, tmp->label);
 				tmp = tmp->dst_next;
 			}
 		}
@@ -320,56 +320,54 @@ public:
 	// the following functions are variant of the former 4 functions, except that timestamp information is also included. The reported result is stored with edge_info structure;
 	void get_timed_suc(unsigned int s, int label, vector<edge_info>& sucs)
 	{
-		unordered_map<unsigned int, neighbor_list>::iterator it = g.find(s);
+		auto it = g.find(s);
 		if (it != g.end())
 		{
 			sg_edge* tmp = it->second.list_head;
 			while (tmp)
 			{
 				if (tmp->label == label)
-					sucs.push_back(edge_info(tmp->s, tmp->d, tmp->timestamp, tmp->label));
+					sucs.emplace_back(tmp->s, tmp->d, tmp->timestamp, tmp->label);
 				tmp = tmp->src_next;
 			}
 		}
-		return;
-	}
+    }
 	void get_timed_prev(unsigned int d, int label, vector<edge_info>& prevs)
 	{
-		unordered_map<unsigned int, neighbor_list>::iterator it = rg.find(d);
+		auto it = rg.find(d);
 		if (it != rg.end())
 		{
 			sg_edge* tmp = it->second.list_head;
 			while (tmp)
 			{
 				if (tmp->label == label)
-					prevs.push_back(edge_info(tmp->s, tmp->d, tmp->timestamp, tmp->label));
+					prevs.emplace_back(tmp->s, tmp->d, tmp->timestamp, tmp->label);
 				tmp = tmp->dst_next;
 			}
 		}
-		return;
-	}
+    }
 	void get_timed_all_suc(unsigned int s, vector<edge_info >& sucs)
 	{
-		unordered_map<unsigned int, neighbor_list>::iterator it = g.find(s);
+		auto it = g.find(s);
 		if (it != g.end())
 		{
 			sg_edge* tmp = it->second.list_head;
 			while (tmp)
 			{
-				sucs.push_back(edge_info(tmp->s, tmp->d, tmp->timestamp, tmp->label));
+				sucs.emplace_back(tmp->s, tmp->d, tmp->timestamp, tmp->label);
 				tmp = tmp->src_next;
 			}
 		}
 	}
 	void get_timed_all_prev(unsigned int d, vector<edge_info >& prevs)
 	{
-		unordered_map<unsigned int, neighbor_list>::iterator it = rg.find(d);
+		auto it = rg.find(d);
 		if (it != rg.end())
 		{
 			sg_edge* tmp = it->second.list_head;
 			while (tmp)
 			{
-				prevs.push_back(edge_info(tmp->s, tmp->d, tmp->timestamp, tmp->label));
+				prevs.emplace_back(tmp->s, tmp->d, tmp->timestamp, tmp->label);
 				tmp = tmp->dst_next;
 			}
 		}
@@ -377,7 +375,7 @@ public:
 
 	void get_src_degree(unsigned int s, map<unsigned int, unsigned int>& degree_map) // count the degree of out edges of a vertex s.
 	{
-		unordered_map<unsigned int, neighbor_list>::iterator it = g.find(s);
+		auto it = g.find(s);
 		if (it != g.end())
 		{
 			sg_edge* tmp = it->second.list_head;
@@ -394,7 +392,7 @@ public:
 
 	void get_dst_degree(unsigned int d, map<unsigned int, unsigned int>& degree_map)// count the degree of in edges of a vertex d.
 	{
-		unordered_map<unsigned int, neighbor_list>::iterator it = rg.find(d);
+		auto it = rg.find(d);
 		if (it != g.end())
 		{
 			sg_edge* tmp = it->second.list_head;
@@ -422,10 +420,10 @@ public:
 	unsigned int get_vertice_num() // count the number of vertices in the streaming graph
 	{
 		unordered_set<unsigned int> S;
-		for (unordered_map<unsigned int, neighbor_list>::iterator it = g.begin(); it != g.end(); it++)
+		for (auto & it : g)
 		{
-			S.insert(it->first);
-			sg_edge* tmp = it->second.list_head;
+			S.insert(it.first);
+			sg_edge* tmp = it.second.list_head;
 			while (tmp)
 			{
 				S.insert(tmp->d);

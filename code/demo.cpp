@@ -1,17 +1,17 @@
 #include<vector>
 #include<string>
-#include<map>
-#include<time.h>
-#include<stdlib.h>
+#include<ctime>
+#include<cstdlib>
 #include<algorithm>
 #include<chrono>
-#include<unordered_map>
 #include "./source/S-PATH.h"
 #include "./source/LM-SRPQ.h"
 #include "./source/LM-DF.h"
 #include "./source/LM-NT.h"
 #include "./source/LM-random.h"
 #include "./source/Brutal-Search.h"
+#include "window_factory.h"
+
 using namespace std;
 bool compare(unsigned int a, unsigned int b)
 {
@@ -28,9 +28,35 @@ int main(int argc, char* argv[])
 	unsigned int days = atoi(argv[3]);
 	unsigned int hour = atoi(argv[4]);
 	unsigned int query_type = atoi(argv[5]);
+    int window_type = atoi(argv[6]);
 	unsigned int scores[4];
 	
-	automaton* aut = new automaton;
+	auto* aut = new automaton;
+
+    // Factory method pattern to create window operator
+    window_factory* window_factory;
+    window_operator* windowOperator;
+    switch (window_type) {
+        case 0: // TRIANGLE
+            window_factory = new class triangle_factory();
+            windowOperator = window_factory->createWindowOperator();
+            break;
+        case 1: // TRANSITIVITY
+            window_factory = new class transitivity_factory();
+            windowOperator = window_factory->createWindowOperator();
+            break;
+        case 2: // LABEL
+            window_factory = new class label_factory();
+            windowOperator = window_factory->createWindowOperator();
+            break;
+        case 3: // CENTRALITY
+            window_factory = new class centrality_factory();
+            windowOperator = window_factory->createWindowOperator();
+            break;
+        default:
+            throw std::invalid_argument(&"Unknown window operator type: " [ window_type]);
+    }
+
 	unsigned int state_num = 0;
 	
 	 if(query_type == 1) //Q1 a*
@@ -166,8 +192,11 @@ int main(int argc, char* argv[])
 		if(t0==0)
 			t0 = t;
 		unsigned int time = t-t0+1;
+
+        int expiration_time = windowOperator->assignWindow(s, d, l, time, f1->getSnapshotGraph());
+
 		auto insertion_start = std::chrono::steady_clock::now();
-		f1->insert_edge(s, d, l, time);
+		f1->insert_edge(s, d, l, time);  // TODO modify edge structure to save expiration time
 		auto insertion_end = std::chrono::steady_clock::now();
 		auto duration = std::chrono::duration_cast<chrono::microseconds>(insertion_end - insertion_start);
 		insertion_time.push_back(duration.count());
