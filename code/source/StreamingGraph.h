@@ -47,6 +47,7 @@ public:
 	unsigned int s, d;
 	int label;
 	unsigned int timestamp;
+	unsigned int expiration_time{};
 	timed_edge* time_pos;
 	sg_edge* src_prev;
 	sg_edge* src_next;	// cross list, maintaining the graph structure
@@ -135,7 +136,7 @@ public:
 		if (time_list_tail == cur)
 			time_list_tail = cur->prev;
 		if (cur->prev)
-			(cur->prev)->next = cur->next; // disconnet it with its precursor and successor
+			(cur->prev)->next = cur->next; // disconnect it with its precursor and successor
 		if (cur->next)
 			(cur->next)->prev = cur->prev;
 	}
@@ -405,6 +406,33 @@ public:
 				tmp = tmp->dst_next;
 			}
 		}
+	}
+
+	/** Compute the degree of a vertex
+	 * @return The sum of in-degree and out-degree of vertex s
+	 * */
+	unsigned int get_total_degree(unsigned int s) {
+		std::map<unsigned int, unsigned int> out_degree_map;
+		std::map<unsigned int, unsigned int> in_degree_map;
+
+		// Populate out-degree and in-degree maps
+		get_src_degree(s, out_degree_map); // Outgoing edges
+		get_dst_degree(s, in_degree_map);  // Incoming edges
+
+		// Compute the total out-degree
+		unsigned int total_out_degree = 0;
+		for (const auto& pair : out_degree_map) {
+			total_out_degree += pair.second;
+		}
+
+		// Compute the total in-degree
+		unsigned int total_in_degree = 0;
+		for (const auto& pair : in_degree_map) {
+			total_in_degree += pair.second;
+		}
+
+		// Return the sum of in-degree and out-degree
+		return total_out_degree + total_in_degree;
 	}
 
 

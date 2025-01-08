@@ -1,0 +1,11 @@
+isLocatedIn 1
+hasInterest 2
+knows 3
+hasCreator 4
+replyOf 5
+hasTag 6
+containerOf 7
+hasMember 8
+hasModerator 9
+likes 10
+default -1

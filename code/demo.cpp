@@ -10,7 +10,7 @@
 #include "./source/LM-NT.h"
 #include "./source/LM-random.h"
 #include "./source/Brutal-Search.h"
-#include "window_factory.h"
+#include "./source/window_factory.h"
 
 using namespace std;
 bool compare(unsigned int a, unsigned int b)
@@ -28,9 +28,15 @@ int main(int argc, char* argv[])
 	unsigned int days = atoi(argv[3]);
 	unsigned int hour = atoi(argv[4]);
 	unsigned int query_type = atoi(argv[5]);
-    int window_type = atoi(argv[6]);
+    unsigned int window_type = 3;
 	unsigned int scores[4];
-	
+
+	if (fin.fail())
+	{
+		cerr << "Error opening file" << endl;
+		exit(1);
+	}
+
 	auto* aut = new automaton;
 
     // Factory method pattern to create window operator
@@ -54,7 +60,7 @@ int main(int argc, char* argv[])
             windowOperator = window_factory->createWindowOperator();
             break;
         default:
-            throw std::invalid_argument(&"Unknown window operator type: " [ window_type]);
+            // throw std::invalid_argument(&"Unknown window operator type: " [ window_type]);
     }
 
 	unsigned int state_num = 0;
@@ -170,10 +176,10 @@ int main(int argc, char* argv[])
 	}
 	
 	unsigned int w = 3600*24*days;
-	streaming_graph* sg = new streaming_graph(w);
-	unsigned int s, d, l;
+	auto* sg = new streaming_graph(w);
+	unsigned long s, d, l;
 	unsigned long long t;
-	string prefix = "./"; // path of the out put files
+	string prefix = "./"; // path of the output files
 	string postfix = ".txt";
 	unsigned int slice = 0;
 	unsigned int t0 = 0;
@@ -181,7 +187,7 @@ int main(int argc, char* argv[])
 	unsigned int edge_number = 0;
 	
 	if(algorithm==1){
-	RPQ_forest* f1 = new RPQ_forest(sg, aut);
+	auto* f1 = new RPQ_forest(sg, aut);
 	ofstream fout1((prefix+ "S-PATH-memory"+postfix).c_str()); // memory of S-PATH, memory mearsued at each checkpoint will be output, including 
 	ofstream fout2((prefix+"S-PATH-insertion-latency"+postfix).c_str());
 	ofstream fout3((prefix+"S-PATH-speed"+postfix).c_str()); //time used by two algorithms
@@ -192,8 +198,6 @@ int main(int argc, char* argv[])
 		if(t0==0)
 			t0 = t;
 		unsigned int time = t-t0+1;
-
-        int expiration_time = windowOperator->assignWindow(s, d, l, time, f1->getSnapshotGraph());
 
 		auto insertion_start = std::chrono::steady_clock::now();
 		f1->insert_edge(s, d, l, time);  // TODO modify edge structure to save expiration time
@@ -214,9 +218,9 @@ int main(int argc, char* argv[])
 	cout << "insert finished " << endl;
 	unsigned int time_used = (double)(finish - start) / CLOCKS_PER_SEC;
 	cout << "S-PATH time used " << time_used << endl;
-	cout<< "S-PATH speed "<<double(edge_number)/time_used<<endl;
+	cout<< "S-PATH speed "<< double(edge_number)/time_used<<endl;
 	fout3<< " S-PATH time used " << time_used << endl;
-	fout3<< "S-PATH speed "<<double(edge_number)/time_used<<endl;
+	fout3<< "S-PATH speed "<< double(edge_number)/time_used<<endl;
 	sort(insertion_time.begin(), insertion_time.end(), compare);
 	if(insertion_time.size()>(edge_number/100))
 		insertion_time.erase(insertion_time.begin()+(edge_number/100), insertion_time.end());
@@ -230,12 +234,13 @@ int main(int argc, char* argv[])
 	delete f1;
 }
 
-if(algorithm==2){	
-	ofstream fout1((prefix+ "LM-memory"+postfix).c_str()); // memory of S-PATH, memory mearsued at each checkpoint will be output, including 
+if(algorithm==2){
+	ofstream fout1((prefix+ "LM-memory_" + std::to_string(days) + "_" + std::to_string(hour) + "_" + to_string(query_type) + postfix).c_str()); // memory of S-PATH, memory measured at each checkpoint will be output, including
 	ofstream fout2((prefix+"LM-insertion-latency"+postfix).c_str());
 	ofstream fout3((prefix+"LM-speed"+postfix).c_str()); //time used by two algorithms
+	ofstream fout4((prefix+"LM-output"+postfix).c_str());
 	
-	LM_forest* f2 = new LM_forest(sg, aut);
+	auto* f2 = new LM_forest(sg, aut);
 	for(int i=0;i<state_num;i++)
 			f2->aut_scores[i] = scores[i];
 	clock_t	start = clock();
@@ -245,11 +250,29 @@ if(algorithm==2){
 		if(t0==0)
 			t0 = t;
 		unsigned int time = t-t0+1;
+
+		// TODO: Add the edge only after assigning window
+		// Decouple insertion in the snapshot graph (g->insert_edge) from the query operator
+		f2->update_snapshot_graph(l, t, s, d);
+
+		// Compute degrees of inserted vertexes and pass it to the window operator
+		unsigned int degree_s = f2->g->get_total_degree(s);
+		unsigned int degree_d = f2->g->get_total_degree(d);
+
+		// Apply window operator and return expiration time
+		int expiration_time = windowOperator->assignWindow(s, d, l, time, f2->g);
+
+		// TODO 4: extend element addition in the forest with custom expiration time
+
+
 		auto insertion_start = std::chrono::steady_clock::now();
 		f2->insert_edge(s, d, l, time);
 		auto insertion_end = std::chrono::steady_clock::now();
 		auto duration = std::chrono::duration_cast<chrono::microseconds>(insertion_end - insertion_start);
 		insertion_time.push_back(duration.count());
+		// f2->output_match(fout4);
+
+		// TODO: customize expired nodes deletions and results output
 		if (time / (3600*hour) > slice) {
 			slice++;
 			f2->expire(time);
@@ -282,7 +305,7 @@ if(algorithm==2){
 }
 
 if(algorithm==3){	
-	ofstream fout1((prefix+ "DF-memory"+postfix).c_str()); // memory of S-PATH, memory mearsued at each checkpoint will be output, including 
+	ofstream fout1((prefix+ "DF-memory"+postfix).c_str()); // memory of S-PATH, memory measured at each checkpoint will be output, including
 	ofstream fout2((prefix+"DF-insertion-latency"+postfix).c_str());
 	ofstream fout3((prefix+"DF-speed"+postfix).c_str()); //time used by two algorithms
 	
@@ -482,6 +505,9 @@ if(algorithm==6){
 	fout3.close();
 	delete f2;
 }
+
+
 	delete sg;
+	return 0;
 }
 

@@ -14,9 +14,7 @@
 using namespace std;
 
 
-// this is the algorithm fo LM-SROQ
-
-
+// this is the algorithm fo LM-SRPQ
 
 class LM_forest
 {
@@ -54,8 +52,15 @@ public:
 		aut_scores.clear();
 	}
 
+	void update_snapshot_graph(unsigned int label, int timestamp, unsigned int s, unsigned int d) const
+	{
+		if (aut->acceptable_labels.find(label) == aut->acceptable_labels.end()) // we only insert the edge if the automaton can accept it, in this case the streaming graph is a layer graph containing necessary edges.
+			return;
+		g->insert_edge(s, d, label, timestamp);
+	}
+
 	void update_result(unordered_map<unsigned int, unsigned int>& updated_nodes, unsigned int root_ID, unsigned int lm_time = MAX_INT)
-	// first of updated nodes are vertex ID, second are path timestamps, root_ID can reach these vertices with a qualified regular path.
+	// first of updated_nodes is vertex ID, second is path timestamps, root_ID can reach these vertices with a qualified regular path.
 		// when lm time is set, updated_nodes store path timestamps from a landmark to the vertices, lm time is the path timestamp from root to the landmark, we need to first merge these two parts and then update the result set. 
 	{
 		for (unordered_map<unsigned int, unsigned int>::iterator it = updated_nodes.begin(); it != updated_nodes.end(); it++)
@@ -397,7 +402,7 @@ public:
 			unsigned long long tmp_info = merge_long_long(tmp->node_ID, tmp->state);
 			if (aut->check_final_state(tmp->state)) {
 				if (updated_results.find(tmp->node_ID) != updated_results.end())
-					updated_results[tmp->node_ID] = max(updated_results[tmp->node_ID], tmp->timestamp);
+					updated_results[tmp->node_ID] = max(updated_results[tmp->node_ID], tmp->timestamp); // todo: use expiration time instead of timestamp
 				else
 					updated_results[tmp->node_ID] = tmp->timestamp;
 			}
@@ -405,7 +410,7 @@ public:
 			{
 				tmp->lm = true;
 				tree_pt->add_lm(tmp_info);
-				get_lm_results(tmp->node_ID, tmp->state, tmp->timestamp, updated_results); // if this node is a landmark, we directly get the timestamp of its successors from the time info map.
+				get_lm_results(tmp->node_ID, tmp->state, tmp->timestamp, updated_results); // if this node is a landmark, we directly get the timestamp of its successors from the time info map. // todo: anche qui
 				continue;
 			}
 			else {
@@ -518,12 +523,12 @@ public:
 	
 	void insert_edge(unsigned int s, unsigned int d, unsigned int label, int timestamp) //  a new edge is inserted.
 	{
-		if (aut->acceptable_labels.find(label) == aut->acceptable_labels.end()) // we only insert the edge if the automaton can accept it, in this case the streaming graph is a layer graph containing necessray edges. 
-			return;
-		g->insert_edge(s, d, label, timestamp);
+		// now inserting new snapshot graph edge at its arrival
+		// update_snapshot_graph(label, timestamp, s, d);
+
 		if (aut->get_suc(0, label) != -1 && forests.find(merge_long_long(s, 0)) == forests.end()) // we need to build a new tree
 		{
-			RPQ_tree* new_tree = new RPQ_tree();
+			auto* new_tree = new RPQ_tree();
 			if (landmarks.find(merge_long_long(s, 0)) == landmarks.end()) // a normal tree
 				new_tree->root = add_node(new_tree, s, 0, s, NULL, MAX_INT, MAX_INT);
 			else { // an LM tree
@@ -534,10 +539,10 @@ public:
 		}
 		vector<pair<int, int> >vec;
 		aut->get_possible_state(label, vec); // find all the state paris that can accept this label
-		for (unsigned int i = 0; i < vec.size(); i++) {
+		for (auto & i : vec) {
 			unordered_map<unsigned long long, vector<pair<unsigned int, unsigned int> > > lm_results;
-			unsigned int src_state = vec[i].first;
-			unsigned int dst_state = vec[i].second;
+			unsigned int src_state = i.first;
+			unsigned int dst_state = i.second;
 			if (landmarks.find(merge_long_long(s, src_state)) != landmarks.end()) // if (s, src_state) is a landmark
 			{
 				RPQ_tree* tree_pt = forests[merge_long_long(s, src_state)];
@@ -1442,11 +1447,12 @@ public:
 		unsigned int um_size = sizeof(unordered_map<unsigned int, unsigned int>); // size of statistics in a map, which does not change with the key-value type, usually is 56, but may change with the system.
 		unsigned int m_size = sizeof(map<unsigned int, unsigned int>); // size of pointers and statistics in a map, which does not change with the key-value type, usually is 48, but may change with the system.
 
-		cout << "result pair size: " << result_pairs.size() << ", memory: " << ((double)(um_size + result_pairs.size() * 24 + result_pairs.bucket_count() * 8) / (1024 * 1024)) << endl;   // number of result vertex pairs, and the memory used to store these results.
-		fout << "result pair size: " << result_pairs.size() << ", memory: " << ((double)(um_size + result_pairs.size() * 24 + result_pairs.bucket_count() * 8) / (1024 * 1024)) << endl;
+		// cout << "result pair size: " << result_pairs.size() << ", memory: " << ((double)(um_size + result_pairs.size() * 24 + result_pairs.bucket_count() * 8) / (1024 * 1024)) << endl;   // number of result vertex pairs, and the memory used to store these results.
+		// fout << "result pair size: " << result_pairs.size() << ", memory: " << ((double)(um_size + result_pairs.size() * 24 + result_pairs.bucket_count() * 8) / (1024 * 1024)) << endl;
+		fout  << result_pairs.size() << endl;
 
-		cout<<"landmark number "<<landmarks.size()<<" tree number "<<forests.size()<<" snapshot graph vertice number "<<g->get_vertice_num()<<endl; 
-		fout<<"landmark number "<<landmarks.size()<<" tree number "<<forests.size()<<" snapshot graph vertice number "<<g->get_vertice_num()<<endl;
+		// cout<<"landmark number "<<landmarks.size()<<" tree number "<<forests.size()<<" snapshot graph vertice number "<<g->get_vertice_num()<<endl;
+		// fout<<"landmark number "<<landmarks.size()<<" tree number "<<forests.size()<<" snapshot graph vertice number "<<g->get_vertice_num()<<endl;
 		
 		unsigned int tree_size = 16 + m_size * 2 + us_size; // size of statistics and pointers in a tree
 		double tree_memory = ((double)(um_size + forests.bucket_count() * 8 + forests.size() * (24+tree_size)) / (1024 * 1024)); // forest is a unordered_map (um), each KV is 16 byte, 8 byte long long + 8 byte pointer,
@@ -1480,8 +1486,8 @@ public:
 		}
 		lm_set_memory = ((lm_set_memory) / (1024 * 1024));
 		time_info_memory = (time_info_memory / (1024 * 1024));
-		cout << "memory usage of time info in lm trees: " << time_info_memory << endl;
-		fout << "memory usage of time info in lm trees: " << time_info_memory << endl;
+		// cout << "memory usage of time info in lm trees: " << time_info_memory << endl;
+		// fout << "memory usage of time info in lm trees: " << time_info_memory << endl;
 
 		// calculate memory of the reverse index from node to tree.
 
@@ -1504,8 +1510,8 @@ public:
 		}
 		lm_node_memory += lm_node_num * 24; // memory of the reverse index units (tree_info)
 		lm_node_memory = (lm_node_memory / (1024 * 1024));
-		cout << "node number in LM tree: " << lm_node_num << ", memory: " << lm_node_memory << endl;
-		fout << "node number in LM tree: " << lm_node_num << ", memory: " << lm_node_memory << endl;
+		// cout << "node number in LM tree: " << lm_node_num << ", memory: " << lm_node_memory << endl;
+		// fout << "node number in LM tree: " << lm_node_num << ", memory: " << lm_node_memory << endl;
 
 		// similar as above, but in normal trees.
 		unsigned int tree_node_num = 0;
@@ -1527,12 +1533,12 @@ public:
 		}
 		tree_node_memory += tree_node_num * 24;
 		tree_node_memory = (tree_node_memory / (1024 * 1024));
-		cout << "node number in normal tree: " << tree_node_num << ", memory: " << tree_node_memory << endl;
-		cout << "total memory besides result set: " << (tree_memory + global_lm_memory + lm_set_memory + time_info_memory + lm_node_memory + tree_node_memory) << endl;
-		fout << "node number in normal tree: " << tree_node_num << ", memory: " << tree_node_memory << endl;
-		fout << "total memory besides result set: " << (tree_memory + global_lm_memory + lm_set_memory + time_info_memory + lm_node_memory + tree_node_memory) << endl;
-		cout << endl;
-		fout << endl;
+		// cout << "node number in normal tree: " << tree_node_num << ", memory: " << tree_node_memory << endl;
+		// cout << "total memory besides result set: " << (tree_memory + global_lm_memory + lm_set_memory + time_info_memory + lm_node_memory + tree_node_memory) << endl;
+		// fout << "node number in normal tree: " << tree_node_num << ", memory: " << tree_node_memory << endl;
+		// fout << "total memory besides result set: " << (tree_memory + global_lm_memory + lm_set_memory + time_info_memory + lm_node_memory + tree_node_memory) << endl;
+		// cout << endl;
+		// fout << endl;
 	}
 
 	void results_update(int time) // this function deletes out dated results with timestamp smaller than given time
@@ -1554,7 +1560,7 @@ public:
 	{
 		queue<tree_node*> q;
 		q.push(child);
-		tree_pt->separate_node(child); // 'child' is disconnected with its parent,other nodes donot need to call this function, as there parents and brothers are all deleted;
+		tree_pt->separate_node(child); // 'child' is disconnected with its parent,other nodes do not need to call this function, as there parents and brothers are all deleted;
 		while (!q.empty())
 		{
 			tree_node* tmp = q.front();
@@ -1568,11 +1574,11 @@ public:
 	}
 
 	void erase_lm_tree_node(RPQ_tree* tree_pt, tree_node* child, vector<unsigned long long>& deleted) // this function deletes subtree rooted at the given node (child) in an LM tree (tree_pt), different from above,
-		// we need to record the deleted nodes with a vectore deleted, we will use these nodes in a backward search later to delete time info map in precursors of this LM tree in the dependency graph.
+		// we need to record the deleted nodes with a vector deleted, we will use these nodes in a backward search later to delete time info map in precursors of this LM tree in the dependency graph.
 	{
 		queue<tree_node*> q;
 		q.push(child);
-		tree_pt->separate_node(child); // 'child' is disconnected with its parent,other nodes donot need to call this function, as there parents and brothers are all deleted;
+		tree_pt->separate_node(child); // 'child' is disconnected with its parent,other nodes do not need to call this function, as there parents and brothers are all deleted;
 		while (!q.empty())
 		{
 			tree_node* tmp = q.front();
@@ -1588,8 +1594,8 @@ public:
 
 
 	void expire_backtrack(unsigned int v, unsigned int state, unsigned int expired_time, vector<unsigned long long>& deleted_results, unordered_set<unsigned long long>& visited)
-		// this function performs a backward search from a landmark £¨v, state). Deleted_results are the nodes where the path from landmark to them has expired. entry of these nodes in the time info map of its precursor LM trees
-		// may also expire, we need to check them in the search, visited records the visited LM trees, in case of repeated check. expired_time is the tail of the silding window, entries with timestamp smaller than it expire.
+		// this function performs a backward search from a landmark ï¿½ï¿½v, state). Deleted_results are the nodes where the path from landmark to them has expired. entry of these nodes in the time info map of its precursor LM trees
+		// may also expire, we need to check them in the search, visited records the visited LM trees, in case of repeated check. expired_time is the tail of the sliding window, entries with timestamp smaller than it expire.
 	{
 		map<unsigned int, lm_info_index*>::iterator iter = v2l_index.find(state);
 		if (iter != v2l_index.end())
@@ -1625,8 +1631,8 @@ public:
 									tree_pt->time_info.erase(dst_state);
 							}
 						}
-						tracked_nodes.push_back(dst_info); // it should be noted that we need to futher backtrack up with all nodes in deleted_results, otherwise errors will happen, some expired time info entries will be left
-						// this is caused by circles in the depdency graph.
+						tracked_nodes.push_back(dst_info); // it should be noted that we need to further backtrack up with all nodes in deleted_results, otherwise errors will happen, some expired time info entries will be left
+						// this is caused by circles in the dependency graph.
 					}
 					if (!tracked_nodes.empty())
 						expire_backtrack(tree_pt->root->node_ID, tree_pt->root->state, expired_time, tracked_nodes, visited);
@@ -1708,7 +1714,7 @@ public:
 		}
 	}
 
-	void expire_per_tree(unsigned int v, unsigned int state, RPQ_tree* tree_pt, unsigned int expired_time) // expire in normal tree, we only need to delte the nodes in the subtree.
+	void expire_per_tree(unsigned int v, unsigned int state, RPQ_tree* tree_pt, unsigned int expired_time) // expire in normal tree, we only need to delete the nodes in the subtree.
 	{
 		if (tree_pt->node_map.find(state) != tree_pt->node_map.end())
 		{
@@ -1728,6 +1734,7 @@ public:
 		vector<edge_info> deleted_edges;
 		g->expire(current_time, deleted_edges); // delete expired edges in the graph
 		unordered_set<unsigned long long> visited_pair;
+		printf("deleted edges: %lu\n", deleted_edges.size());
 		for (int i = 0; i < deleted_edges.size(); i++)
 		{
 			unsigned int dst = deleted_edges[i].d;
