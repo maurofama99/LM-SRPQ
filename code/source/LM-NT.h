@@ -108,7 +108,7 @@ public:
 	tree_node* add_node(RPQ_tree* tree_pt, unsigned int v, unsigned int state, unsigned int root_ID, tree_node* parent, unsigned int timestamp, unsigned int edge_time, bool lm = false) // add a node to a normal tree, bool lm indicating if this node is a landmark.
 	{
 		add_index(tree_pt, v, state, root_ID);
-		tree_node* tmp = tree_pt->add_node(v, state, parent, timestamp, edge_time);
+		tree_node* tmp = tree_pt->add_node(v, state, parent, timestamp, edge_time, 0);
 		tmp->lm = lm;
 		return tmp;
 	}
@@ -118,7 +118,7 @@ public:
 		tree_node* parent, unsigned int timestamp, unsigned int edge_time, bool lm = false) // add a node to the LM tree .
 	{
 		add_lm_index(lm_tree, v, state, root_ID, root_state);
-		tree_node* tmp = lm_tree->add_node(v, state, parent, timestamp, edge_time);
+		tree_node* tmp = lm_tree->add_node(v, state, parent, timestamp, edge_time, 0);
 		tmp->lm = lm;
 		return tmp;
 	}
@@ -859,7 +859,7 @@ public:
 	RPQ_tree* build_lm_tree(unsigned int v, unsigned int state) // this function build new lm tree for a landmark, we use time info in prune and may miss some nodes, we will add them back with above fulfill_new_lm_tree later .
 	{
 		RPQ_tree* new_tree = new RPQ_tree;
-		new_tree->root = new_tree->add_node(v, state, NULL, MAX_INT, MAX_INT);
+		new_tree->root = new_tree->add_node(v, state, NULL, MAX_INT, MAX_INT, 0);
 		queue<tree_node*> q;
 		q.push(new_tree->root);
 		while (!q.empty())
@@ -888,7 +888,7 @@ public:
 
 				if (new_tree->node_map.find(dst_state) == new_tree->node_map.end() || new_tree->node_map[dst_state]->index.find(successor) == new_tree->node_map[dst_state]->index.end())
 				{
-					tree_node* new_node = new_tree->add_node(successor, dst_state, tmp, time, sucs[i].timestamp);
+					tree_node* new_node = new_tree->add_node(successor, dst_state, tmp, time, sucs[i].timestamp, 0);
 					q.push(new_node);
 				}
 				else

@@ -74,6 +74,7 @@ public:
 				result_pairs[result_pair] = max(result_pairs[result_pair], time);
 			else
 				result_pairs[result_pair] = time;
+			// cout << dst << ", " << time << endl;
 		}
 	}
 
@@ -113,7 +114,7 @@ public:
 	tree_node* add_node(RPQ_tree* tree_pt, unsigned int v, unsigned int state, unsigned int root_ID, tree_node* parent, unsigned int timestamp, unsigned int edge_time, bool lm = false) // add a node to a normal tree, bool lm indicating if this node is a landmark.
 	{
 		add_index(tree_pt, v, state, root_ID);
-		tree_node* tmp = tree_pt->add_node(v, state, parent, timestamp, edge_time);
+		tree_node* tmp = tree_pt->add_node(v, state, parent, timestamp, edge_time, 0);
 		tmp->lm = lm;
 		return tmp;
 	}
@@ -123,7 +124,7 @@ public:
 		tree_node* parent, unsigned int timestamp, unsigned int edge_time, bool lm = false) // add a node to the LM tree .
 	{
 		add_lm_index(lm_tree, v, state, root_ID, root_state);
-		tree_node* tmp = lm_tree->add_node(v, state, parent, timestamp, edge_time);
+		tree_node* tmp = lm_tree->add_node(v, state, parent, timestamp, edge_time, 0);
 		tmp->lm = lm;
 		return tmp;
 	}
@@ -1022,7 +1023,7 @@ public:
 	RPQ_tree* build_lm_tree(unsigned int v, unsigned int state) // this function build new lm tree for a landmark, we use time info in prune and may miss some nodes, we will add them back with above fulfill_new_lm_tree later .
 	{
 		RPQ_tree* new_tree = new RPQ_tree;
-		new_tree->root = new_tree->add_node(v, state, NULL, MAX_INT, MAX_INT);
+		new_tree->root = new_tree->add_node(v, state, NULL, MAX_INT, MAX_INT, 0);
 		new_tree->add_time_info(v, state, MAX_INT);
 		queue<tree_node*> q;
 		q.push(new_tree->root);
@@ -1058,7 +1059,7 @@ public:
 
 				if (new_tree->node_map.find(dst_state) == new_tree->node_map.end() || new_tree->node_map[dst_state]->index.find(successor) == new_tree->node_map[dst_state]->index.end())
 				{
-					tree_node* new_node = new_tree->add_node(successor, dst_state, tmp, time, sucs[i].timestamp);
+					tree_node* new_node = new_tree->add_node(successor, dst_state, tmp, time, sucs[i].timestamp, 0);
 					new_tree->add_time_info(successor, dst_state, time);
 					q.push(new_node);
 				}
@@ -1714,13 +1715,13 @@ public:
 		}
 	}
 
-	void expire_per_tree(unsigned int v, unsigned int state, RPQ_tree* tree_pt, unsigned int expired_time) // expire in normal tree, we only need to delete the nodes in the subtree.
+	void expire_per_tree(unsigned int v, unsigned int state, RPQ_tree* tree_pt, unsigned int expire_time) // expire in normal tree, we only need to delete the nodes in the subtree.
 	{
 		if (tree_pt->node_map.find(state) != tree_pt->node_map.end())
 		{
 			if (tree_pt->node_map[state]->index.find(v) != tree_pt->node_map[state]->index.end()) {
 				tree_node* dst_pt = tree_pt->node_map[state]->index[v];
-				if (dst_pt->timestamp < expired_time)
+				if (dst_pt->timestamp < expire_time)
 					erase_tree_node(tree_pt, dst_pt);
 			}
 

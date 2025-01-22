@@ -1,4 +1,4 @@
 a2q 1
-c2a 2
-c2c 3
+c2q 2
+c2a 3
 default -1

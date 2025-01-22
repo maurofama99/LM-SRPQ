@@ -8,4 +8,5 @@ containerOf 7
 hasMember 8
 hasModerator 9
 likes 10
+moderatorOf 11
 default -1

@@ -108,7 +108,7 @@ public:
 	tree_node* add_node(RPQ_tree* tree_pt, unsigned int v, unsigned int state, unsigned int root_ID, tree_node* parent, unsigned int timestamp, unsigned int edge_time, bool lm = false) // add a node to a normal tree, bool lm indicating if this node is a landmark.
 	{
 		add_index(tree_pt, v, state, root_ID);
-		tree_node* tmp = tree_pt->add_node(v, state, parent, timestamp, edge_time);
+		tree_node* tmp = tree_pt->add_node(v, state, parent, timestamp, edge_time, 0);
 		tmp->lm = lm;
 		return tmp;
 	}
@@ -118,7 +118,7 @@ public:
 		tree_node* parent, unsigned int timestamp, unsigned int edge_time, bool lm = false) // add a node to the LM tree .
 	{
 		add_lm_index(lm_tree, v, state, root_ID, root_state);
-		tree_node* tmp = lm_tree->add_node(v, state, parent, timestamp, edge_time);
+		tree_node* tmp = lm_tree->add_node(v, state, parent, timestamp, edge_time, 0);
 		tmp->lm = lm;
 		return tmp;
 	}
@@ -1017,7 +1017,7 @@ public:
 	RPQ_tree* build_lm_tree(unsigned int v, unsigned int state) // this function build new lm tree for a landmark, we use time info in prune and may miss some nodes, we will add them back with above fulfill_new_lm_tree later .
 	{
 		RPQ_tree* new_tree = new RPQ_tree;
-		new_tree->root = new_tree->add_node(v, state, NULL, MAX_INT, MAX_INT);
+		new_tree->root = new_tree->add_node(v, state, NULL, MAX_INT, MAX_INT, 0);
 		new_tree->add_time_info(v, state, MAX_INT);
 		priority_queue<tree_node*, vector<tree_node*>, time_compare> q;
 		q.push(new_tree->root);
@@ -1053,7 +1053,7 @@ public:
 
 				if (new_tree->node_map.find(dst_state) == new_tree->node_map.end() || new_tree->node_map[dst_state]->index.find(successor) == new_tree->node_map[dst_state]->index.end())
 				{
-					tree_node* new_node = new_tree->add_node(successor, dst_state, tmp, time, sucs[i].timestamp);
+					tree_node* new_node = new_tree->add_node(successor, dst_state, tmp, time, sucs[i].timestamp ,0);
 					new_tree->add_time_info(successor, dst_state, time);
 					q.push(new_node);
 				}
@@ -1533,7 +1533,7 @@ public:
 
 
 	void expire_backtrack(unsigned int v, unsigned int state, unsigned int expired_time, vector<unsigned long long>& deleted_results, unordered_set<unsigned long long>& visited)
-		// this function performs a backward search from a landmark £¨v, state). Deleted_results are the nodes where the path from landmark to them has expired. entry of these nodes in the time info map of its precursor LM trees
+		// this function performs a backward search from a landmark ï¿½ï¿½v, state). Deleted_results are the nodes where the path from landmark to them has expired. entry of these nodes in the time info map of its precursor LM trees
 		// may also expire, we need to check them in the search, visited records the visited LM trees, in case of repeated check. expired_time is the tail of the silding window, entries with timestamp smaller than it expire.
 	{
 		map<unsigned int, lm_info_index*>::iterator iter = v2l_index.find(state);

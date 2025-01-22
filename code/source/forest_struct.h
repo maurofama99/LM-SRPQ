@@ -40,6 +40,7 @@ struct tree_node // node in the spanning tree
 	unsigned int node_ID;
 	unsigned int edge_timestamp; // timestamp of the edge linked this node and its parent;
 	unsigned int timestamp; // timestamp of this node
+	unsigned int edge_expiration;
 	unsigned int state;
 	bool lm; // indicating if this is a landmark. This bool is not needed in S-PATH and will not be calculated in memory usage. 
 	tree_node* parent;	// pointer to parent. As we may need to move a subtree from one parent to another, a parent pointer will accelerate this procedure, as suggested by the authors.
@@ -85,6 +86,8 @@ public:
 	unordered_map<unsigned long long, unsigned int> timed_landmarks; // this structure is used to directly get the landmarks and the timestamp of this landmark in the spanning tree. 
 	// This structure is used when we need to traverse forward in the dependency graph, and thus is only needed in the dependency-forest version of LM-SRPQ
 	int node_cnt;
+	int min_timestamp = MAX_INT;
+	int max_timestamp = -1;
 
 	RPQ_tree()
 	{
@@ -143,20 +146,27 @@ public:
 		else
 			return 0;
 	}
-	tree_node* add_node(unsigned int v, unsigned int state, tree_node* parent, unsigned int time, unsigned int edge_time) // add a new tree node with given ID, state, node time ,edge time and parent
+	tree_node* add_node(unsigned int v, unsigned int state, tree_node* parent, unsigned int time, unsigned int edge_time, unsigned int exp) // add a new tree node with given ID, state, node time ,edge time and parent
 	{
-		tree_node* tmp = new tree_node(v, state, time, edge_time);
+		auto* tmp = new tree_node(v, state, time, edge_time);
+		tmp->edge_expiration = exp;
 		tmp->parent = parent;
 		if (parent) {
 			tmp->brother = parent->child; // add this node to the head of the child list of the parent
 			parent->child = tmp;
 		}
 		else
-			tmp->brother = NULL;
+			tmp->brother = nullptr;
 		if (node_map.find(state) == node_map.end())
 			node_map[state] = new tree_node_index;
 		node_map[state]->index[v] = tmp; // add this node to the node map
 		node_cnt++;
+		if (edge_time < min_timestamp) {
+			min_timestamp = edge_time;
+		}
+		if (edge_time > max_timestamp) {
+			max_timestamp = edge_time;
+		}
 		return tmp;
 	}
 	void set_lm(unsigned int v, unsigned int state) // set the LM tag of a node to true;

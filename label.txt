@@ -1,7 +1,8 @@
 StackOverflow
 answer_to_question 1
-comment_to_answer 2
-comment_to_comment 3
+comment_to_question 2
+comment_to_answer 3
+
 
 
 a* 1
@@ -38,6 +39,15 @@ abc 10 5 4
 abc* 4 10 5
 ab*c 9 3 1
 (a+b+c)d* 4 8 9 3
+
+// sgraffito version
+a* 5
+a?b* 10 5
+ab* 10 5
+abc 11 7 4
+abc* 3 10 4
+ab*c 3 10 4
+(a+b+c)d* 3 10 4 4 (?)
 
 
 yago2s
