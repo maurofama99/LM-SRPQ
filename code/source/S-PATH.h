@@ -210,7 +210,7 @@ public:
 	void update_snapshot_graph(unsigned int s, unsigned int d, unsigned int label, int timestamp, unsigned exp) const {
 		if (aut->acceptable_labels.find(label) == aut->acceptable_labels.end()) // if the edge is not a part of the regular expression, we do not process this edge;
 			return;
-		g->insert_edge_extended(s, d, label, timestamp, exp);  // the streaming graph we store, is in fact a layer graph, where only the edges essential to the query. The whole graph can be stored else where, and but considered in our experiment.
+		g->insert_edge_new(s, d, label, timestamp, exp);  // the streaming graph we store, is in fact a layer graph, where only the edges essential to the query. The whole graph can be stored else where, and but considered in our experiment.
 	}
 
 	void insert_edge_extended(unsigned int s, unsigned int d, unsigned int label, int timestamp, int exp) //  a new snapshot graph edge (s, d) is inserted, update the spanning forest accordingly.

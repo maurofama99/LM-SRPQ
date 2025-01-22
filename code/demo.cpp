@@ -180,9 +180,6 @@ int main(int argc, char *argv[]) {
 
     unsigned int w = 3600* days;
     auto *sg = new streaming_graph(w);
-    sg->a = 200000;
-    sg->b = 26500;
-    sg->k = 3;
     unsigned long s, d, l;
     unsigned long long t;
     string prefix = "./"; // path of the output files
@@ -244,7 +241,7 @@ int main(int argc, char *argv[]) {
 
         printf("edge number: %u\n", edge_number);
         printf("unique vertexes: %d\n", windowOperator->unique_vertexes);
-        printf("windows extended: %d\n", sg->extended);
+        // printf("windows extended: %d\n", sg->extended);
 
         printf("reshaping: %u\n", windowOperator->reshaping);
         printf("RESULTS:\ndistinct paths: %d, peek memory: %f, average memory: %f\n", f1->distinct_results, f1->peek_memory, f1->memory_current_avg);

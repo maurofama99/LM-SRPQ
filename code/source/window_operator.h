@@ -121,8 +121,8 @@ public:
         int window_id;
 
         // Compute degrees of inserted vertexes and pass it to the window operator
-        unsigned int degree_s = sg->get_total_degree(s);
-        unsigned int degree_d = -sg->get_total_degree(d);
+        unsigned int degree_s = 1;
+        unsigned int degree_d = 1;
 
         float theta_s = pow(degree_s, alpha) / (pow(degree_s, alpha) + pow(degree_d, alpha));
         float theta_d = 1 - theta_s;

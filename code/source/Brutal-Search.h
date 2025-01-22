@@ -168,7 +168,7 @@ public:
 
 	void expire(int current_time) // given current time, delete the expired tree nodes and results.
 	{
-		int expire_time = current_time - g->window_size; // compute the threshold of expiration.
+		int expire_time = current_time ; // compute the threshold of expiration.
 		results_update(expire_time); // delete expired results
 		vector<edge_info> deleted_edges;
 		g->expire(current_time, deleted_edges); // delete expired graph edges.

@@ -1390,8 +1390,8 @@ public:
 		cout << "result pair size: " << result_pairs.size() << ", memory: " << ((double)(um_size + result_pairs.size() * 24 + result_pairs.bucket_count() * 8) / (1024 * 1024)) << endl;   // number of result vertex pairs, and the memory used to store these results.
 		fout << "result pair size: " << result_pairs.size() << ", memory: " << ((double)(um_size + result_pairs.size() * 24 + result_pairs.bucket_count() * 8) / (1024 * 1024)) << endl;
 
-		cout << "landmark number " << landmarks.size() << " tree number " << forests.size() << " snapshot graph vertice number " << g->get_vertice_num() << endl;
-		fout << "landmark number " << landmarks.size() << " tree number " << forests.size() << " snapshot graph vertice number " << g->get_vertice_num() << endl;
+		//cout << "landmark number " << landmarks.size() << " tree number " << forests.size() << " snapshot graph vertice number " << g->get_vertice_num() << endl;
+		//fout << "landmark number " << landmarks.size() << " tree number " << forests.size() << " snapshot graph vertice number " << g->get_vertice_num() << endl;
 
 		unsigned int tree_size = 16 + m_size * 2 + us_size; // size of statistics and pointers in a tree
 		double tree_memory = ((double)(um_size + forests.bucket_count() * 8 + forests.size() * (24 + tree_size)) / (1024 * 1024)); // forest is a unordered_map (um), each KV is 16 byte, 8 byte long long + 8 byte pointer,
@@ -1668,7 +1668,7 @@ public:
 
 	void expire(int current_time) //given current time, carry out an expiration in the forest.
 	{
-		int expire_time = current_time - g->window_size;
+		int expire_time = current_time ;
 		results_update(expire_time); // delete expired results.
 		vector<edge_info> deleted_edges;
 		g->expire(current_time, deleted_edges); // delete expired edges in the graph

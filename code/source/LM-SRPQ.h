@@ -1730,7 +1730,7 @@ public:
 
 	void expire(int current_time) //given current time, carry out an expiration in the forest.
 	{
-		int expire_time = current_time - g->window_size;
+		int expire_time = current_time;
 		results_update(expire_time); // delete expired results.
 		vector<edge_info> deleted_edges;
 		g->expire(current_time, deleted_edges); // delete expired edges in the graph
