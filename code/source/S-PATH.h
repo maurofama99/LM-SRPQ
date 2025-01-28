@@ -207,16 +207,12 @@ public:
 		}
 	}
 
-	void update_snapshot_graph(unsigned int s, unsigned int d, unsigned int label, int timestamp, unsigned exp) const {
-		if (aut->acceptable_labels.find(label) == aut->acceptable_labels.end()) // if the edge is not a part of the regular expression, we do not process this edge;
-			return;
-		g->insert_edge_new(s, d, label, timestamp, exp);  // the streaming graph we store, is in fact a layer graph, where only the edges essential to the query. The whole graph can be stored else where, and but considered in our experiment.
-	}
-
 	void insert_edge_extended(unsigned int s, unsigned int d, unsigned int label, int timestamp, int exp) //  a new snapshot graph edge (s, d) is inserted, update the spanning forest accordingly.
 	{
 		// todo Insert expiration time also in the snapshot graph
-		update_snapshot_graph(s, d, label, timestamp, exp);
+		if (aut->acceptable_labels.find(label) == aut->acceptable_labels.end()) // if the edge is not a part of the regular expression, we do not process this edge;
+			return;
+		g->insert_edge(s, d, label, timestamp, exp);
 
 		if (aut->get_suc(0, label) != -1 && forests.find(merge_long_long(s, 0)) == forests.end()) // if this edge can be accepted by the initial state, and this is no spanning tree with root (s, 0), we add this tree
 		{
@@ -292,10 +288,10 @@ public:
 		}
 	}
 
-	void expire(int current_time) // given current time, delete the expired tree nodes and results.
+	void expire(int current_time, unsigned frontier) // given current time, delete the expired tree nodes and results.
 	{
 		// int expire_time = current_time - g->window_size; // compute the threshold of expiration.
-		results_update(current_time); // delete expired results // fixme and check if still valid
+		results_update(frontier); // delete expired results
 		vector<edge_info> deleted_edges;
 		g->expire(current_time, deleted_edges); // delete expired graph edges.
 		unordered_set<unsigned long long> visited; 

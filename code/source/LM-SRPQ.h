@@ -56,7 +56,7 @@ public:
 	{
 		if (aut->acceptable_labels.find(label) == aut->acceptable_labels.end()) // we only insert the edge if the automaton can accept it, in this case the streaming graph is a layer graph containing necessary edges.
 			return;
-		g->insert_edge(s, d, label, timestamp);
+		// g->insert_edge(s, d, label, timestamp);
 	}
 
 	void update_result(unordered_map<unsigned int, unsigned int>& updated_nodes, unsigned int root_ID, unsigned int lm_time = MAX_INT)
@@ -1296,7 +1296,7 @@ public:
 		}
 	}
 
-
+/*
 	void dynamic_lm_select(double candidate_rate, double benefit_threshold) // the function to select landmarks, first parameter is the candidate selection rate, usually 0.2, the second is the benefit threshold, usually 1.5 
 	{
 		vector<vertex_score> scores;
@@ -1437,6 +1437,8 @@ public:
 			}
 		}
 	}
+
+	*/
 	void output_match(ofstream& fout)
 	{
 		for (unordered_map<unsigned long long, unsigned int>::iterator iter = result_pairs.begin(); iter != result_pairs.end(); iter++)

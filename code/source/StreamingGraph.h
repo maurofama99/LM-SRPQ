@@ -118,6 +118,7 @@ public:
         for (auto &[to_vertex, existing_edge]: adjacency_list[from]) {
             if (existing_edge->label == label && to_vertex == to) {
                 existing_edge->timestamp = timestamp; // Update the timestamp if the edge exists
+                existing_edge->expiration_time = expiration_time;
                 delete_timed_edge(existing_edge->time_pos);
 
                 // Update the time sequence list, ensuring the list remains sorted by timestamp
@@ -188,11 +189,12 @@ public:
             if (cur->timestamp + window_size >= timestamp) // The later edges are still in the sliding window, and we can stop the expiration.
                 break;
             */
-            if (cur_edge->expiration_time >= timestamp) {
+            if (cur_edge->expiration_time > timestamp) {
                 // The later edges are still in the sliding window, and we can stop the expiration.
                 break;
             }
 
+            if ( cur_edge->timestamp % 3600 == 0) cout <<"evict element at t " << cur_edge->timestamp /3600 << " ,evict time: " << timestamp /3600<< endl;
             deleted_edges.emplace_back(cur_edge->s, cur_edge->d, cur_edge->timestamp, cur_edge->label,
                                        cur_edge->expiration_time);
             remove_edge(cur_edge);

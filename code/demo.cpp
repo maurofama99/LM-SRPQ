@@ -7,10 +7,6 @@
 #include<limits>
 #include "./source/S-PATH.h"
 #include "./source/LM-SRPQ.h"
-#include "./source/LM-DF.h"
-#include "./source/LM-NT.h"
-#include "./source/LM-random.h"
-#include "./source/Brutal-Search.h"
 #include "./source/window_factory.h"
 
 using namespace std;
@@ -178,8 +174,8 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    unsigned int w = 3600* days;
-    auto *sg = new streaming_graph(w);
+    unsigned int w = days *3600 ;
+    auto *sg = new streaming_graph();
     unsigned long s, d, l;
     unsigned long long t;
     string prefix = "./"; // path of the output files
@@ -207,6 +203,9 @@ int main(int argc, char *argv[]) {
         }
 
         unsigned int time;
+        unsigned frontier = 0;
+        unsigned eviction_trigger = size;
+
         while (fin >> s >> d >> l >> t) {
             edge_number++;
             if (t0 == 0) {
@@ -214,10 +213,8 @@ int main(int argc, char *argv[]) {
                 time = 1;
             } else time = t - t0;
 
-            int c_sup = ceil(time / slide) * slide;
-            int o_i = c_sup - size;
-
-            f1->expire(time);
+            double c_sup = ceil(time / slide) * slide;
+            double o_i = c_sup - size;
 
             unsigned int window_close;
             do {
@@ -225,19 +222,22 @@ int main(int argc, char *argv[]) {
                 o_i += slide;
             } while (o_i <= time);
 
-            // TODO REPORT ON WINDOW CLOSE
-            f1->insert_edge_extended(s, d, l, time, window_close);
-            // cout << time << " ,window close " << window_close << endl;
+            if (time >= eviction_trigger) {
+                cout << "eviction_trigger: " << eviction_trigger / 3600 <<  " frontier " << frontier / 3600 << endl;
+                f1->expire(time, frontier);
+                frontier += slide;
+                eviction_trigger += slide;
+            }
 
-            // tutto quello anteriore a o_i = c_sup - size deve essere evictato -> expire up to o_i ogni elemento che arriva
-            // per calcolare max window close vado a o_i aggiungo k slide
+            f1->insert_edge_extended(s, d, l, time, window_close);
+            if (time % 10000 == 0)  cout << time /3600 << " , window close " << window_close /3600 << endl;
 
             if (time >= checkpoint*3600) {
                 checkpoint += checkpoint;
-                f1->count(fout1);
+                // f1->count(fout1);
             }
         }
-        f1->count(fout1);
+        // f1->count(fout1);
 
         printf("edge number: %u\n", edge_number);
         printf("unique vertexes: %d\n", windowOperator->unique_vertexes);
@@ -295,7 +295,7 @@ int main(int argc, char *argv[]) {
             if (time / (3600 * hour) > slice) {
                 slice++;
                 f2->expire(time);
-                f2->dynamic_lm_select(candidate_rate, benefit_threshold);
+                // f2->dynamic_lm_select(candidate_rate, benefit_threshold);
 
                 cout << slice << " slices have been inserted" << endl;
                 if (slice > 0 && slice % (days * 24 / hour) == 0)
@@ -322,231 +322,6 @@ int main(int argc, char *argv[]) {
         fout3.close();
         delete f2;
     }
-
-    if (algorithm == 3) {
-        ofstream fout1((prefix + "DF-memory" + postfix).c_str());
-        // memory of S-PATH, memory measured at each checkpoint will be output, including
-        ofstream fout2((prefix + "DF-insertion-latency" + postfix).c_str());
-        ofstream fout3((prefix + "DF-speed" + postfix).c_str()); //time used by two algorithms
-
-        LM_DF *f2 = new LM_DF(sg, aut);
-        for (int i = 0; i < state_num; i++)
-            f2->aut_scores[i] = scores[i];
-        clock_t start = clock();
-        while (fin >> s >> d >> l >> t) {
-            edge_number++;
-            if (t0 == 0)
-                t0 = t;
-            unsigned int time = t - t0 + 1;
-            auto insertion_start = std::chrono::steady_clock::now();
-            f2->insert_edge(s, d, l, time);
-            auto insertion_end = std::chrono::steady_clock::now();
-            auto duration = std::chrono::duration_cast<chrono::microseconds>(insertion_end - insertion_start);
-            insertion_time.push_back(duration.count());
-            if (time / (3600 * hour) > slice) {
-                slice++;
-                f2->expire(time);
-                f2->dynamic_lm_select(candidate_rate, benefit_threshold);
-
-                cout << slice << " slices have been inserted" << endl;
-                if (slice > 0 && slice % (days * 24 / hour) == 0)
-                    f2->count(fout1);
-            }
-        }
-        clock_t finish = clock();
-        cout << "insert finished " << endl;
-        unsigned int time_used = (double) (finish - start) / CLOCKS_PER_SEC;
-        cout << "LM-DF time used " << time_used << endl;
-        cout << "LM-DF speed " << (double) edge_number / time_used << endl;
-        fout3 << " LM-DF time used " << time_used << endl;
-        fout3 << "LM-DF speed " << (double) edge_number / time_used << endl;
-
-        sort(insertion_time.begin(), insertion_time.end(), compare);
-        if (insertion_time.size() > (edge_number / 100))
-            insertion_time.erase(insertion_time.begin() + (edge_number / 100), insertion_time.end());
-        for (int i = 0; i < insertion_time.size(); i++)
-            fout2 << insertion_time[i] << endl;
-
-        insertion_time.clear();
-        fout1.close();
-        fout2.close();
-        fout3.close();
-        delete f2;
-    }
-
-    if (algorithm == 4) {
-        ofstream fout1((prefix + "NT-memory" + postfix).c_str());
-        // memory of S-PATH, memory mearsued at each checkpoint will be output, including
-        ofstream fout2((prefix + "NT-insertion-latency" + postfix).c_str());
-        ofstream fout3((prefix + "NT-speed" + postfix).c_str()); //time used by two algorithms
-
-        LM_NT *f2 = new LM_NT(sg, aut);
-        for (int i = 0; i < state_num; i++)
-            f2->aut_scores[i] = scores[i];
-        clock_t start = clock();
-        while (fin >> s >> d >> l >> t) {
-            edge_number++;
-            if (t0 == 0)
-                t0 = t;
-            unsigned int time = t - t0 + 1;
-            auto insertion_start = std::chrono::steady_clock::now();
-            f2->insert_edge(s, d, l, time);
-            auto insertion_end = std::chrono::steady_clock::now();
-            auto duration = std::chrono::duration_cast<chrono::microseconds>(insertion_end - insertion_start);
-            insertion_time.push_back(duration.count());
-            if (time / (3600 * hour) > slice) {
-                slice++;
-                f2->expire(time);
-                f2->dynamic_lm_select(candidate_rate, benefit_threshold);
-
-                cout << slice << " slices have been inserted" << endl;
-                if (slice > 0 && slice % (days * 24 / hour) == 0)
-                    f2->count(fout1);
-            }
-        }
-        clock_t finish = clock();
-        cout << "insert finished " << endl;
-        unsigned int time_used = (double) (finish - start) / CLOCKS_PER_SEC;
-        cout << "LM-NT time used " << time_used << endl;
-        cout << "LM-NT speed " << (double) edge_number / time_used << endl;
-        fout3 << " LM-NT time used " << time_used << endl;
-        fout3 << "LM-NT speed " << (double) edge_number / time_used << endl;
-
-        sort(insertion_time.begin(), insertion_time.end(), compare);
-        if (insertion_time.size() > (edge_number / 100))
-            insertion_time.erase(insertion_time.begin() + (edge_number / 100), insertion_time.end());
-        for (int i = 0; i < insertion_time.size(); i++)
-            fout2 << insertion_time[i] << endl;
-
-        insertion_time.clear();
-        fout1.close();
-        fout2.close();
-        fout3.close();
-        delete f2;
-    }
-
-    if (algorithm == 5) {
-        ofstream fout1((prefix + "random-memory" + postfix).c_str());
-        // memory of S-PATH, memory mearsued at each checkpoint will be output, including
-        ofstream fout2((prefix + "random-insertion-latency" + postfix).c_str());
-        ofstream fout3((prefix + "random-speed" + postfix).c_str()); //time used by two algorithms
-
-        bool first_window = true;
-        unsigned int last_processed_slide;
-        unsigned int processed_edge_counter;
-        unsigned int window_close;
-        unsigned int time;
-        int size = w;
-        // int slide = hour * 3600;
-        unsigned slide = hour;
-        if (size % slide != 0) {
-            printf("size is not a multiple of slide\n");
-            return 0;
-        }
-
-        LM_random *f2 = new LM_random(sg, aut);
-        for (int i = 0; i < state_num; i++)
-            f2->aut_scores[i] = scores[i];
-        clock_t start = clock();
-        while (fin >> s >> d >> l >> t) {
-            edge_number++;
-            if (t0 == 0) {
-                t0 = t;
-                time = 1;
-                window_close = t0 + size;
-            } else time = t - t0;
-
-            if (time >= slide) {
-                if (first_window) {
-                    first_window = false;
-
-                    last_processed_slide = t0 + slide;
-                    window_close += slide;
-                } else if (time - last_processed_slide >= slide) {
-
-                    f2->expire(last_processed_slide); // evict until last slide ts (last processed ts not included)
-                    cout << "evicting all until " << last_processed_slide << endl;
-                    // f1->count(fout1);
-
-                    last_processed_slide += slide;
-                    window_close += slide;
-                }
-            }
-
-            f2->insert_edge(s, d, l, time);
-            processed_edge_counter++;
-            cout << "time : " << time << ", window close" << window_close << endl;
-        }
-        clock_t finish = clock();
-        cout << "insert finished " << endl;
-        unsigned int time_used = (double) (finish - start) / CLOCKS_PER_SEC;
-        cout << "LM-random time used " << time_used << endl;
-        cout << "LM-random speed " << (double) edge_number / time_used << endl;
-        fout3 << " LM-random time used " << time_used << endl;
-        fout3 << "LM-random speed " << (double) edge_number / time_used << endl;
-
-        sort(insertion_time.begin(), insertion_time.end(), compare);
-        if (insertion_time.size() > (edge_number / 100))
-            insertion_time.erase(insertion_time.begin() + (edge_number / 100), insertion_time.end());
-        for (int i = 0; i < insertion_time.size(); i++)
-            fout2 << insertion_time[i] << endl;
-
-        insertion_time.clear();
-        fout1.close();
-        fout2.close();
-        fout3.close();
-        delete f2;
-    }
-
-
-    if (algorithm == 6) {
-        ofstream fout1((prefix + "brutal-memory" + postfix).c_str());
-        // memory of S-PATH, memory mearsued at each checkpoint will be output, including
-        ofstream fout2((prefix + "brutal-insertion-latency" + postfix).c_str());
-        ofstream fout3((prefix + "brutal-speed" + postfix).c_str()); //time used by two algorithms
-
-        Brutal_Solver *f2 = new Brutal_Solver(sg, aut);
-        clock_t start = clock();
-        while (fin >> s >> d >> l >> t) {
-            edge_number++;
-            if (t0 == 0)
-                t0 = t;
-            unsigned int time = t - t0 + 1;
-            auto insertion_start = std::chrono::steady_clock::now();
-            f2->insert_edge(s, d, l, time);
-            auto insertion_end = std::chrono::steady_clock::now();
-            auto duration = std::chrono::duration_cast<chrono::microseconds>(insertion_end - insertion_start);
-            insertion_time.push_back(duration.count());
-            if (time / (3600 * hour) > slice) {
-                slice++;
-                f2->expire(time);
-
-                cout << slice << " slices have been inserted" << endl;
-                if (slice > 0 && slice % (days * 24 / hour) == 0)
-                    f2->count(fout1);
-            }
-        }
-        clock_t finish = clock();
-        cout << "insert finished " << endl;
-        unsigned int time_used = (double) (finish - start) / CLOCKS_PER_SEC;
-        cout << "Brutal Search time used " << time_used << endl;
-        cout << "Brutal Search speed " << (double) edge_number / time_used << endl;
-        fout3 << " Brutal Search time used " << time_used << endl;
-        fout3 << "Brutal Search speed " << (double) edge_number / time_used << endl;
-
-        sort(insertion_time.begin(), insertion_time.end(), compare);
-        if (insertion_time.size() > (edge_number / 100))
-            insertion_time.erase(insertion_time.begin() + (edge_number / 100), insertion_time.end());
-        for (int i = 0; i < insertion_time.size(); i++)
-            fout2 << insertion_time[i] << endl;
-
-        insertion_time.clear();
-        fout1.close();
-        fout2.close();
-        fout3.close();
-        delete f2;
-    }
-
 
     delete sg;
     return 0;
