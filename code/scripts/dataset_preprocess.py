@@ -43,10 +43,10 @@ def main():
     config_file = "config_ldbc.txt"
     # File di input e output
     input_file = "/Users/maurofama/Documents/phd/frames4pgs/LM-SRPQ/code/dataset/ldbc-sf10-updatestream.txt"
-    output_file = "/Users/maurofama/Documents/phd/frames4pgs/LM-SRPQ/code/dataset/ldbc-sf10-updatestream_postprocess_2kk500k.txt"
+    output_file = "/Users/maurofama/Documents/phd/frames4pgs/LM-SRPQ/code/dataset/ldbc-sf10-updatestream_postprocess_25kk.txt"
 
     # Limite sul numero di righe del file di output (-1 per nessun limite)
-    max_lines = 2500000  # Cambia questo valore come necessario
+    max_lines = 25000000  # Cambia questo valore come necessario
 
     # Leggi la mappa delle etichette e il valore di default
     label_map, default_value = parse_label_map(config_file)

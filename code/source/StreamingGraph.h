@@ -64,6 +64,15 @@ public:
     timed_edge *time_list_head; // head of the time sequence list;
     timed_edge *time_list_tail; // tail of the time sequence list
 
+    double mean = 0;
+    double m2 = 0;
+    unordered_map<unsigned int, int> density;
+
+    double zscore_threshold = 1.5;
+    int slide_threshold = 100;
+    int saved_edges = 0;
+    int slide;
+
     explicit streaming_graph() {
         edge_num = 0;
         time_list_head = nullptr;
@@ -124,13 +133,14 @@ public:
                 // Update the time sequence list, ensuring the list remains sorted by timestamp
                 t_edge = new timed_edge(existing_edge);
                 add_timed_edge(t_edge);
+                existing_edge->time_pos = t_edge;
 
                 return false;
             }
         }
 
         auto *edge = new sg_edge(from, to, label, timestamp);
-        edge_num++;
+
         edge->expiration_time = expiration_time;
         // Add the edge to the adjacency list if it doesn't exist
         if (adjacency_list.find(from) == adjacency_list.end()) {
@@ -138,8 +148,22 @@ public:
         }
         adjacency_list[from].emplace_back(to, edge);
 
+        // update z score
+        density[from]++;
+        // cout << "density: " << density[from] << ", z_score: " << get_zscore(from) << endl;
+        edge_num++;
+        if (edge_num == 1) {
+            mean = density[from];
+            m2 = 0;
+        } else {
+            double old_mean = mean;
+            mean += (density[from] - mean) / edge_num;
+            m2 += (density[from] - old_mean) * (density[from] - mean);
+        }
+
         t_edge = new timed_edge(edge);
         add_timed_edge(t_edge);
+        edge->time_pos = t_edge;
 
         return true;
     }
@@ -163,6 +187,12 @@ public:
 
                 // Remove the edge from the adjacency list
                 edges.erase(it);
+
+                double old_mean = mean;
+                mean -= (mean - density[from]) / (edge_num - 1);
+                m2 -= (density[from] - old_mean) * (density[from] - mean);
+
+                density[from]--;
                 edge_num--;
 
                 // If the vertex has no more edges, remove it from the adjacency list
@@ -180,9 +210,13 @@ public:
      * @param timestamp current time
      * @param deleted_edges return vector with deleted edges
      */
-    void expire(unsigned int timestamp, vector<edge_info> &deleted_edges)
+    vector<sg_edge*> expire(unsigned int timestamp, vector<edge_info> &deleted_edges)
     // this function is used to find all expired edges and remove them from the graph.
     {
+        vector<sg_edge*> significant_edges;
+        int evicted = 0;
+
+        saved_edges = 0;
         while (time_list_head) {
             sg_edge *cur_edge = time_list_head->edge_pt;
             /*
@@ -191,10 +225,19 @@ public:
             */
             if (cur_edge->expiration_time > timestamp) {
                 // The later edges are still in the sliding window, and we can stop the expiration.
+                // cout << "evicted " << evicted << ", saved_edges " << saved_edges << endl;
                 break;
             }
+            evicted++;
 
-            if ( cur_edge->timestamp % 3600 == 0) cout <<"evict element at t " << cur_edge->timestamp /3600 << " ,evict time: " << timestamp /3600<< endl;
+            if (timestamp - cur_edge->timestamp <= slide*slide_threshold and get_zscore(cur_edge->s) > zscore_threshold) {
+                // cout << get_zscore(cur_edge->s) << endl;
+                saved_edges++;
+                auto saved_edge = new sg_edge(cur_edge->s, cur_edge->d, cur_edge->label, timestamp);
+                significant_edges.emplace_back(saved_edge);
+            }
+
+            // if ( cur_edge->timestamp % 3600 == 0) cout <<"evict element at t " << cur_edge->timestamp /3600 << " ,evict time: " << timestamp /3600<< endl;
             deleted_edges.emplace_back(cur_edge->s, cur_edge->d, cur_edge->timestamp, cur_edge->label,
                                        cur_edge->expiration_time);
             remove_edge(cur_edge);
@@ -210,6 +253,8 @@ public:
         // cout << "extended: " << extended << " vs expired: " << expired << endl;
         if (!time_list_head) // if the list is empty, the tail pointer should also be NULL;
             time_list_tail = nullptr;
+
+        return significant_edges;
     }
 
     void get_timed_all_suc(unsigned int s, vector<edge_info> &sucs) {
@@ -230,5 +275,14 @@ public:
         for (const auto &[_, edge]: adjacency_list[s]) {
             degree_map[edge->label]++;
         }
+    }
+
+    double get_zscore(unsigned int vertex) {
+        double variance = m2 / edge_num;
+        double std_dev = sqrt(variance);
+
+        if (std_dev == 0) return 0;
+
+        return (density[vertex] - mean) / std_dev;
     }
 };

@@ -169,17 +169,12 @@ public:
 		}
 		return tmp;
 	}
+
 	void set_lm(unsigned int v, unsigned int state) // set the LM tag of a node to true;
 	{
-		if (node_map.find(state) == node_map.end())
-			return;
-		else
-		{
-			if (node_map[state]->index.find(v) != node_map[state]->index.end())
-			{
-				tree_node* tmp = node_map[state]->index[v];
-				tmp->lm = true;
-			}
+		if (node_map.find(state) != node_map.end() && node_map[state]->index.find(v) != node_map[state]->index.end()) {
+			tree_node *tmp = node_map[state]->index[v];
+			tmp->lm = true;
 		}
 	}
 

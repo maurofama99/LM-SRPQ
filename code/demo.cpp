@@ -197,6 +197,7 @@ int main(int argc, char *argv[]) {
         // convert size and slide from hours to seconds
         int size = w;
         int slide = hour *3600;
+        sg->slide = slide;
         if (size % slide != 0) {
             printf("size is not a multiple of slide\n");
             return 0;
@@ -205,6 +206,8 @@ int main(int argc, char *argv[]) {
         unsigned int time;
         unsigned frontier = 0;
         unsigned eviction_trigger = size;
+        int reinserted = 0;
+        bool reinsert = true;
 
         while (fin >> s >> d >> l >> t) {
             edge_number++;
@@ -223,27 +226,39 @@ int main(int argc, char *argv[]) {
             } while (o_i <= time);
 
             if (time >= eviction_trigger) {
-                cout << "eviction_trigger: " << eviction_trigger / 3600 <<  " frontier " << frontier / 3600 << endl;
-                f1->expire(time, frontier);
+                // cout << "eviction_trigger: " << eviction_trigger / 3600 <<  " frontier " << frontier / 3600 << endl;
+
+                if (reinsert) {
+                    vector<sg_edge*> edges_to_reinsert = f1->expire(time, frontier);
+                    reinserted++;
+                    // cout << "window close: " << window_close / 3600 << " expired edges: " << edges_to_reinsert.size() << endl;
+
+                    for (auto edge : edges_to_reinsert) {
+                        f1->insert_edge_extended(edge->s, edge->d, edge->label, edge->timestamp, edge->timestamp + ((size/slide)*size));
+                        reinserted++;
+                    }
+
+                    edges_to_reinsert.clear();
+                } else f1->expire(time, frontier);
+
                 frontier += slide;
                 eviction_trigger += slide;
             }
 
             f1->insert_edge_extended(s, d, l, time, window_close);
-            if (time % 10000 == 0)  cout << time /3600 << " , window close " << window_close /3600 << endl;
+            // if (time % 10000 == 0)  cout << time /3600 << " , window close " << window_close /3600 << endl;
 
             if (time >= checkpoint*3600) {
                 checkpoint += checkpoint;
-                // f1->count(fout1);
+                f1->count(fout1);
             }
         }
-        // f1->count(fout1);
+        f1->count(fout1);
 
         printf("edge number: %u\n", edge_number);
         printf("unique vertexes: %d\n", windowOperator->unique_vertexes);
-        // printf("windows extended: %d\n", sg->extended);
-
-        printf("reshaping: %u\n", windowOperator->reshaping);
+        printf("saved edges: %d\n", reinserted);
+        printf("avg degree: %f\n", sg->mean);
         printf("RESULTS:\ndistinct paths: %d, peek memory: %f, average memory: %f\n", f1->distinct_results, f1->peek_memory, f1->memory_current_avg);
         printf("expand calls: %u\n", f1->expand_call);
 

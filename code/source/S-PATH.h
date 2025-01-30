@@ -65,7 +65,7 @@ public:
 			unsigned int time = updated_node.second;
 			if (dst == root_ID) // self-join is omitted
 				continue;
-			unsigned long long result_pair = (((unsigned long long)root_ID << 32) | dst);
+			unsigned long long result_pair = static_cast<unsigned long long>(root_ID) << 32 | dst;
 			if (result_pairs.find(result_pair) != result_pairs.end())
 				result_pairs[result_pair] = max(result_pairs[result_pair], time); // if the vertex pair exists, update its timestamp
 			else {
@@ -76,23 +76,6 @@ public:
 			// cout << dst << ", " << time << endl;
 		}
 	}
-
-	/*void update_result(vector<pair<unsigned int, unsigned int> >& updated_nodes, unsigned int root_ID) // similar as above, but the vertex-timestamp pairs are stored with a vector.
-	{
-		for (auto & updated_node : updated_nodes)
-		{
-			unsigned int dst = updated_node.first;
-			unsigned int time = updated_node.second;
-			if (dst == root_ID)
-				continue;
-			unsigned long long result_pair = (((unsigned long long)root_ID << 32) | dst);
-			if (result_pairs.find(result_pair) != result_pairs.end())
-				result_pairs[result_pair] = max(result_pairs[result_pair], time);
-			else
-				result_pairs[result_pair] = time;
-		}
-	}*/
-
 
 	void add_index(RPQ_tree* tree_pt, unsigned int v, unsigned int state, unsigned int root_ID) // modify the reverse index to record the presence of a node in a tree. 
 	{
@@ -109,8 +92,6 @@ public:
 		tree_node* tmp = tree_pt->add_node(v, state, parent, timestamp, edge_time, edge_exp);
 		return tmp;
 	}
-
-
 
 	void delete_index(unsigned int v, unsigned int state, unsigned int root) // modify the reverse index when a node is not in a spanning tree any more. 
 	{
@@ -135,12 +116,9 @@ public:
 			q.pop();
 			unsigned long long tmp_info = merge_long_long(tmp->node_ID, tmp->state);
 			if (aut->check_final_state(tmp->state)) { // if this is a final state, we need to update the result set, we record it first and at last carry out the update together
-				// debug
 				if (updated_results.find(tmp->node_ID) != updated_results.end())
-					// updated_results[tmp->node_ID] = max(updated_results[tmp->node_ID], tmp->timestamp);
 					updated_results[tmp->node_ID] = max(updated_results[tmp->node_ID], tmp->edge_expiration);
 				else {
-					// updated_results[tmp->node_ID] = tmp->timestamp;
 					updated_results[tmp->node_ID] = tmp->edge_expiration;
 				}
 			}
@@ -202,7 +180,6 @@ public:
 						expand(dst_pt, tree_pt);
 					}
 				}
-					return;
 			}
 		}
 	}
@@ -288,12 +265,15 @@ public:
 		}
 	}
 
-	void expire(int current_time, unsigned frontier) // given current time, delete the expired tree nodes and results.
+	vector<sg_edge*> expire(int current_time, unsigned frontier) // given current time, delete the expired tree nodes and results.
 	{
 		// int expire_time = current_time - g->window_size; // compute the threshold of expiration.
-		results_update(frontier); // delete expired results
+		// results_update(frontier); // delete expired results
 		vector<edge_info> deleted_edges;
-		g->expire(current_time, deleted_edges); // delete expired graph edges.
+		vector<sg_edge*> significant_edges = g->expire(current_time, deleted_edges); // delete expired graph edges.
+
+		// for each expired edge, find the expired nodes in the spanning forest
+		// significant edges will not be erased nor from the graph nor from the forest, this leads to having potentially
 		unordered_set<unsigned long long> visited; 
 		for (auto & deleted_edge : deleted_edges)
 		{
@@ -316,7 +296,7 @@ public:
 					{
 						vector<RPQ_tree*> tree_to_delete;
 						tree_info* tmp = tree_iter->second;
-						while (tmp)	// first record the trees in the list with a vetor, as when we delete expired nodes we will change the tree list, leading to error in the list scan.
+						while (tmp)	// first record the trees in the list with a vector, as when we delete expired nodes we will change the tree list, leading to error in the list scan.
 						{
 							tree_to_delete.push_back(tmp->tree);
 							tmp = tmp->next;
@@ -324,7 +304,7 @@ public:
 						for (auto & k : tree_to_delete)
 						{
 							expire_per_tree(dst, dst_state, k, current_time); // expire in each tree
-							if (k->root->child == NULL) // delete the tree if it is empty.
+							if (k->root->child == nullptr) // delete the tree if it is empty.
 							{
 								delete_index(k->root->node_ID, k->root->state, k->root->node_ID);
 								forests.erase(merge_long_long(k->root->node_ID, k->root->state));
@@ -337,7 +317,7 @@ public:
 				}
 			}
 		}
-
+		return significant_edges;
 	}
 
 
@@ -398,7 +378,6 @@ public:
 			std::cout << "Average number of nodes in trees: " << average << "\n";
 			std::cout << "Variance: " << variance << "\n";
 			std::cout << "Average extent: " << avg_extent << "\n";
-
 		}
 
 		unsigned int tree_node_num = 0;
@@ -427,10 +406,6 @@ public:
 		cout << "total memory besides result set: " << (tree_memory + tree_node_memory) << endl; // total memory usage
 		fout << "total node number in forest: " << tree_node_num << ", memory: " << tree_node_memory << endl;
 		fout << "total memory besides result set: " << (tree_memory + tree_node_memory) << endl;
-
-
-
-
 
 		cout << endl;
 		fout << endl;
