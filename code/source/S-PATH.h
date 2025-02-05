@@ -265,12 +265,12 @@ public:
 		}
 	}
 
-	vector<sg_edge*> expire(int current_time, unsigned frontier) // given current time, delete the expired tree nodes and results.
+	void expire(int current_time) // given current time, delete the expired tree nodes and results.
 	{
 		// int expire_time = current_time - g->window_size; // compute the threshold of expiration.
 		// results_update(frontier); // delete expired results
 		vector<edge_info> deleted_edges;
-		vector<sg_edge*> significant_edges = g->expire(current_time, deleted_edges); // delete expired graph edges.
+		g->expire(current_time, deleted_edges); // delete expired graph edges.
 
 		// for each expired edge, find the expired nodes in the spanning forest
 		// significant edges will not be erased nor from the graph nor from the forest, this leads to having potentially
@@ -317,7 +317,6 @@ public:
 				}
 			}
 		}
-		return significant_edges;
 	}
 
 

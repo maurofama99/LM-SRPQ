@@ -207,7 +207,7 @@ int main(int argc, char *argv[]) {
         unsigned frontier = 0;
         unsigned eviction_trigger = size;
         int reinserted = 0;
-        bool reinsert = true;
+        bool reinsert = false;
 
         while (fin >> s >> d >> l >> t) {
             edge_number++;
@@ -228,19 +228,7 @@ int main(int argc, char *argv[]) {
             if (time >= eviction_trigger) {
                 // cout << "eviction_trigger: " << eviction_trigger / 3600 <<  " frontier " << frontier / 3600 << endl;
 
-                if (reinsert) {
-                    vector<sg_edge*> edges_to_reinsert = f1->expire(time, frontier);
-                    reinserted++;
-                    // cout << "window close: " << window_close / 3600 << " expired edges: " << edges_to_reinsert.size() << endl;
-
-                    for (auto edge : edges_to_reinsert) {
-                        f1->insert_edge_extended(edge->s, edge->d, edge->label, edge->timestamp, edge->timestamp + ((size/slide)*size));
-                        reinserted++;
-                    }
-
-                    edges_to_reinsert.clear();
-                } else f1->expire(time, frontier);
-
+                f1->expire(time);
                 frontier += slide;
                 eviction_trigger += slide;
             }
@@ -257,7 +245,7 @@ int main(int argc, char *argv[]) {
 
         printf("edge number: %u\n", edge_number);
         printf("unique vertexes: %d\n", windowOperator->unique_vertexes);
-        printf("saved edges: %d\n", reinserted);
+        printf("saved edges: %d\n", sg->saved_edges);
         printf("avg degree: %f\n", sg->mean);
         printf("RESULTS:\ndistinct paths: %d, peek memory: %f, average memory: %f\n", f1->distinct_results, f1->peek_memory, f1->memory_current_avg);
         printf("expand calls: %u\n", f1->expand_call);

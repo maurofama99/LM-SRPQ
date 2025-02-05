@@ -69,9 +69,9 @@ public:
     unordered_map<unsigned int, int> density;
 
     double zscore_threshold = 1.5;
-    int slide_threshold = 100;
+    int slide_threshold = 10;
     int saved_edges = 0;
-    int slide;
+    int slide{};
 
     explicit streaming_graph() {
         edge_num = 0;
@@ -95,28 +95,37 @@ public:
         }
     }
 
-    void add_timed_edge(timed_edge *cur)
-    // add an edge to the time sequence list. As edges arrive in time order, it will be added to the tail.
+    void add_timed_edge(timed_edge *cur) // append an edge to the time sequence list
     {
-        cur->next = nullptr;
-        cur->prev = time_list_tail;
-        if (!time_list_head) // if the list is empty, then this is the head.
+        if (!time_list_head) {
             time_list_head = cur;
-        if (time_list_tail)
+            time_list_tail = cur;
+        } else {
             time_list_tail->next = cur;
-        time_list_tail = cur; // cur is the new tail
+            cur->prev = time_list_tail;
+            time_list_tail = cur;
+        }
     }
 
-    void delete_timed_edge(timed_edge *cur) // delete an edge from the time list;
+    void delete_timed_edge(timed_edge *cur) // delete an edge from the time sequence list
     {
-        if (time_list_head == cur)
+        if (!cur)
+            return;
+
+        if (cur == time_list_head) {
             time_list_head = cur->next;
-        if (time_list_tail == cur)
+            if (time_list_head)
+                time_list_head->prev = nullptr;
+        }
+
+        if (cur == time_list_tail) {
             time_list_tail = cur->prev;
-        if (cur->prev)
-            (cur->prev)->next = cur->next; // disconnect it with its precursor and successor
-        if (cur->next)
-            (cur->next)->prev = cur->prev;
+            if (time_list_tail)
+                time_list_tail->next = nullptr;
+        }
+
+        if (cur->prev) cur->prev->next = cur->next;
+        if (cur->next) cur->next->prev = cur->prev;
     }
 
     bool insert_edge(unsigned int from, unsigned int to, int label, unsigned int timestamp,
@@ -168,7 +177,7 @@ public:
         return true;
     }
 
-    bool remove_edge(const sg_edge *edge_to_delete) {
+    bool remove_edge(const sg_edge *edge_to_delete) { // delete an edge from the snapshot graph
         const unsigned int from = edge_to_delete->s;
         const unsigned int to = edge_to_delete->d;
         const int label = edge_to_delete->label;
@@ -188,6 +197,7 @@ public:
                 // Remove the edge from the adjacency list
                 edges.erase(it);
 
+                // update z-score computation
                 double old_mean = mean;
                 mean -= (mean - density[from]) / (edge_num - 1);
                 m2 -= (density[from] - old_mean) * (density[from] - mean);
@@ -207,54 +217,40 @@ public:
     }
 
     /**
+     * This function assumes that the list is sorted by timestamp
      * @param timestamp current time
      * @param deleted_edges return vector with deleted edges
      */
-    vector<sg_edge*> expire(unsigned int timestamp, vector<edge_info> &deleted_edges)
-    // this function is used to find all expired edges and remove them from the graph.
+    void expire(unsigned int timestamp, vector<edge_info> &deleted_edges) // this function is used to find all expired edges and remove them from the graph.
     {
-        vector<sg_edge*> significant_edges;
         int evicted = 0;
 
-        saved_edges = 0;
-        while (time_list_head) {
-            sg_edge *cur_edge = time_list_head->edge_pt;
-            /*
-            if (cur->timestamp + window_size >= timestamp) // The later edges are still in the sliding window, and we can stop the expiration.
-                break;
-            */
-            if (cur_edge->expiration_time > timestamp) {
-                // The later edges are still in the sliding window, and we can stop the expiration.
+        timed_edge * time_list_cur = time_list_head;
+        while (time_list_cur) {
+            sg_edge *cur_edge = time_list_cur->edge_pt;
+
+            if (cur_edge->expiration_time > timestamp) { // The later edges are still in the sliding window, and we can stop the expiration.
                 // cout << "evicted " << evicted << ", saved_edges " << saved_edges << endl;
                 break;
             }
-            evicted++;
 
             if (timestamp - cur_edge->timestamp <= slide*slide_threshold and get_zscore(cur_edge->s) > zscore_threshold) {
                 // cout << get_zscore(cur_edge->s) << endl;
                 saved_edges++;
-                auto saved_edge = new sg_edge(cur_edge->s, cur_edge->d, cur_edge->label, timestamp);
-                significant_edges.emplace_back(saved_edge);
+                cur_edge->expiration_time = timestamp + slide;
+            } else {
+                // if ( cur_edge->timestamp % 3600 == 0) cout << "evict element at t " << cur_edge->timestamp / 3600 << " ,evict time: " << timestamp / 3600 << endl;
+                evicted++;
+                deleted_edges.emplace_back(cur_edge->s, cur_edge->d, cur_edge->timestamp, cur_edge->label, cur_edge->expiration_time);
+                remove_edge(cur_edge); // update adjacency list of snapshot graph
+                delete_timed_edge(time_list_cur);
+                delete cur_edge;
             }
-
-            // if ( cur_edge->timestamp % 3600 == 0) cout <<"evict element at t " << cur_edge->timestamp /3600 << " ,evict time: " << timestamp /3600<< endl;
-            deleted_edges.emplace_back(cur_edge->s, cur_edge->d, cur_edge->timestamp, cur_edge->label,
-                                       cur_edge->expiration_time);
-            remove_edge(cur_edge);
-
-            // we record the information of expired edges. This information will be used to find expired tree nodes in S-PATH or LM-SRPQ.
-            timed_edge *tmp = time_list_head;
-            time_list_head = time_list_head->next; // delete the time sequence list unit
-            if (time_list_head)
-                time_list_head->prev = nullptr;
-            delete tmp;
-            delete cur_edge;
+            time_list_cur = time_list_cur->next;
         }
         // cout << "extended: " << extended << " vs expired: " << expired << endl;
         if (!time_list_head) // if the list is empty, the tail pointer should also be NULL;
             time_list_tail = nullptr;
-
-        return significant_edges;
     }
 
     void get_timed_all_suc(unsigned int s, vector<edge_info> &sucs) {
