@@ -4,16 +4,31 @@
 #include<cstdlib>
 #include<algorithm>
 #include<chrono>
-#include<limits>
 #include "./source/S-PATH.h"
 #include "./source/LM-SRPQ.h"
-#include "./source/window_factory.h"
 
 using namespace std;
 
 bool compare(unsigned int a, unsigned int b) {
     return a > b;
 }
+
+class window {
+public:
+    unsigned int t_open;
+    unsigned int t_close;
+    timed_edge *first;
+    timed_edge *last;
+    bool evicted = false;
+
+    // Constructor
+    window(unsigned int t_open, unsigned int t_close, timed_edge *first, timed_edge *last) {
+        this->t_open = t_open;
+        this->t_close = t_close;
+        this->first = first;
+        this->last = last;
+    }
+};
 
 int main(int argc, char *argv[]) {
     double candidate_rate = 0.2;
@@ -34,6 +49,7 @@ int main(int argc, char *argv[]) {
 
     auto *aut = new automaton;
 
+    /*
     // Factory method pattern to create window operator
     window_factory *window_factory;
     window_operator *windowOperator;
@@ -57,6 +73,7 @@ int main(int argc, char *argv[]) {
         default:
             throw std::invalid_argument(&"Unknown window operator type: "[window_type]);
     }
+    */
 
     unsigned int state_num = 0;
 
@@ -185,8 +202,8 @@ int main(int argc, char *argv[]) {
     vector<unsigned int> insertion_time;
     unsigned int edge_number = 0;
 
-    int checkpoint = 1;
     if (algorithm == 1) {
+        int checkpoint = 1;
         auto *f1 = new RPQ_forest(sg, aut);
         ofstream fout1((prefix + "S-PATH-memory" + postfix).c_str());
         // memory of S-PATH, memory measured at each checkpoint will be output, including
@@ -195,8 +212,8 @@ int main(int argc, char *argv[]) {
         clock_t start = clock();
 
         // convert size and slide from hours to seconds
-        int size = w;
-        int slide = hour *3600;
+        unsigned int size = w;
+        unsigned int slide = hour *3600;
         sg->slide = slide;
         if (size % slide != 0) {
             printf("size is not a multiple of slide\n");
@@ -206,8 +223,11 @@ int main(int argc, char *argv[]) {
         unsigned int time;
         unsigned frontier = 0;
         unsigned eviction_trigger = size;
-        int reinserted = 0;
-        bool reinsert = false;
+
+        vector<window> windows;
+        unsigned int current_window_index = 0;
+        unsigned int window_offset = 0;
+        windows.emplace_back(0, size, nullptr, nullptr);
 
         while (fin >> s >> d >> l >> t) {
             edge_number++;
@@ -216,35 +236,132 @@ int main(int argc, char *argv[]) {
                 time = 1;
             } else time = t - t0;
 
+            if (aut->acceptable_labels.find(l) == aut->acceptable_labels.end()) // if the edge is not a part of the regular expression, we do not process this edge;
+                continue;
+
+            // scope
             double c_sup = ceil(time / slide) * slide;
             double o_i = c_sup - size;
 
             unsigned int window_close;
             do {
                 window_close = o_i + size;
+                if (windows[current_window_index].t_close < window_close) {
+                    windows.emplace_back(o_i, window_close, nullptr, nullptr);
+                    current_window_index++;
+                    // cout << "window [" << o_i << ", " << window_close << "] created\n";
+                }
                 o_i += slide;
             } while (o_i <= time);
 
-            if (time >= eviction_trigger) {
-                // cout << "eviction_trigger: " << eviction_trigger / 3600 <<  " frontier " << frontier / 3600 << endl;
+            // add + query
+            timed_edge* t_edge;
+            sg_edge* new_edge = f1->insert_edge_extended(s, d, l, time, window_close);
 
-                f1->expire(time);
-                frontier += slide;
-                eviction_trigger += slide;
+            // duplicate handling, important to not evict edges being updated
+            if (!new_edge) {
+                // search for the duplicate
+                auto existing_edge = sg->search_existing_edge(s, d, l);
+
+                // update window open pointers if needed
+                for (size_t i = window_offset; i < windows.size(); i++) {
+                    if (windows[i].first == existing_edge->time_pos) {
+                        // shift window first to next element
+                        windows[i].first = existing_edge->time_pos->next;
+                    }
+                }
+
+                // update edge list (erase and re-append)
+                sg->delete_timed_edge(existing_edge->time_pos);
+
+                new_edge = existing_edge;
+                new_edge->timestamp = time;
             }
 
-            f1->insert_edge_extended(s, d, l, time, window_close);
-            // if (time % 10000 == 0)  cout << time /3600 << " , window close " << window_close /3600 << endl;
+            t_edge = new timed_edge(new_edge);
+            sg->add_timed_edge(t_edge);
+            new_edge->time_pos = t_edge;
+
+            vector<size_t> to_evict;
+            bool evict = false;
+            for (size_t i = window_offset; i < windows.size(); i++) {
+                if (windows[i].t_open <= time && time < windows[i].t_close) { // add to window
+                    if (!windows[i].first) windows[i].first = t_edge;
+                    windows[i].last = t_edge;
+                } else if (time > windows[i].t_close) { // schedule for eviction
+                    window_offset = i+1;
+                    to_evict.push_back(i);
+                    evict = true;
+                }
+            }
+
+            // evict
+            if (evict) {
+                //cout << "adjacency list size ante evict: " << sg->adjacency_list.size() << endl;
+                vector<edge_info> deleted_edges;
+                timed_edge* evict_start_point = windows[to_evict[0]].first;
+                timed_edge* evict_end_point = windows[to_evict.back()+1].first;
+
+                if (!evict_start_point) {
+                    cout << "evict start point is null" << endl;
+                    exit(1);
+                }
+
+                if (evict_end_point == nullptr) {
+                    evict_end_point = sg->time_list_tail;
+                    cout << "Evict end point is null, evicting whole buffer." << endl;
+                }
+
+                /*
+                cout << "end point timestamps: " << evict_end_point->edge_pt->timestamp << endl;
+                cout << "windows[to_evict.back()+1].first timestamp " << windows[to_evict.back()+1].first->edge_pt->timestamp << endl;
+                cout << "evict end point: " << evict_end_point << ", timed edge pointer: " << evict_end_point->edge_pt->time_pos << endl;
+                */
+
+                timed_edge* current = evict_start_point;
+                while (current && current != evict_end_point) {
+                    // cout << "evicting edge (" << current->edge_pt->s << ", " << current->edge_pt->d << ", " << current->edge_pt->label << ", " << current->edge_pt->timestamp << ")\n";
+                    auto cur_edge = current->edge_pt;
+                    deleted_edges.emplace_back(cur_edge->s, cur_edge->d, cur_edge->timestamp, cur_edge->label, cur_edge->expiration_time);
+                    sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label); // update adjacency list of snapshot graph
+                    auto tmp  = current->next;
+                    sg->delete_timed_edge(current);
+                    current = tmp;
+                }
+                for (unsigned long i : to_evict) {
+                    windows[i].evicted = true;
+                    windows[i].first = nullptr;
+                    windows[i].last = nullptr;
+                }
+                to_evict.clear();
+
+                sg->time_list_head = evict_end_point;
+                sg->time_list_head->prev = nullptr;
+
+                f1->expire(time, deleted_edges);
+            }
 
             if (time >= checkpoint*3600) {
                 checkpoint += checkpoint;
                 f1->count(fout1);
+                /*
+                for (const auto &window : windows) {
+                    if (window.evicted) continue;
+                    cout << "Window [" << window.t_open << ", " << window.t_close << "]\n";
+                    if (window.first) {
+                        cout << "First Edge: (" << window.first->edge_pt->s << ", " << window.first->edge_pt->d << ", " << window.first->edge_pt->label << ", " << window.first->edge_pt->timestamp << ")\n";
+                    }
+                    if (window.last) {
+                        cout << "Last Edge: (" << window.last->edge_pt->s << ", " << window.last->edge_pt->d << ", " << window.last->edge_pt->label << ", " << window.last->edge_pt->timestamp << ")\n";
+                    }
+                    cout << endl;
+                }
+                */
             }
         }
         f1->count(fout1);
 
         printf("edge number: %u\n", edge_number);
-        printf("unique vertexes: %d\n", windowOperator->unique_vertexes);
         printf("saved edges: %d\n", sg->saved_edges);
         printf("avg degree: %f\n", sg->mean);
         printf("RESULTS:\ndistinct paths: %d, peek memory: %f, average memory: %f\n", f1->distinct_results, f1->peek_memory, f1->memory_current_avg);

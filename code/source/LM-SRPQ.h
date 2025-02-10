@@ -1735,7 +1735,7 @@ public:
 		int expire_time = current_time;
 		results_update(expire_time); // delete expired results.
 		vector<edge_info> deleted_edges;
-		g->expire(current_time, deleted_edges); // delete expired edges in the graph
+		// g->expire(current_time, deleted_edges); // delete expired edges in the graph
 		unordered_set<unsigned long long> visited_pair;
 		printf("deleted edges: %lu\n", deleted_edges.size());
 		for (int i = 0; i < deleted_edges.size(); i++)

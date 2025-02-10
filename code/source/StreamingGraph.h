@@ -14,10 +14,10 @@ struct timed_edge
         // this is the structure to maintain the time sequence list. It stores the tuples in the stream with time order, each tuple is an edge;
 {
     timed_edge *next;
-    timed_edge *prev; // the two pointers to maintain the list;
-    sg_edge *edge_pt; // information of the tuple, including src, dst, edge label and timestamp;
-    explicit timed_edge(sg_edge *edge_pt_ = nullptr) {
-        edge_pt = edge_pt_;
+    timed_edge *prev; // the two pointers to maintain the double linked list;
+    sg_edge *edge_pt; // pointer to the sg edge;
+    explicit timed_edge(sg_edge *edge) {
+        edge_pt = edge;
         next = nullptr;
         prev = nullptr;
     }
@@ -64,6 +64,7 @@ public:
     timed_edge *time_list_head; // head of the time sequence list;
     timed_edge *time_list_tail; // tail of the time sequence list
 
+    // Z-score computation
     double mean = 0;
     double m2 = 0;
     unordered_map<unsigned int, int> density;
@@ -126,28 +127,32 @@ public:
 
         if (cur->prev) cur->prev->next = cur->next;
         if (cur->next) cur->next->prev = cur->prev;
+
+        // delete cur;
     }
 
-    bool insert_edge(unsigned int from, unsigned int to, int label, unsigned int timestamp,
+    sg_edge * search_existing_edge(unsigned int from, unsigned int to, int label) {
+
+        for (auto &[to_vertex, existing_edge]: adjacency_list[from]) {
+            if (existing_edge->label == label && to_vertex == to) {
+                return existing_edge;
+            }
+        }
+
+        return nullptr;
+    }
+
+    sg_edge* insert_edge(unsigned int from, unsigned int to, int label, unsigned int timestamp,
                          unsigned int expiration_time) {
-        timed_edge *t_edge;
 
         // Check if the edge already exists in the adjacency list
         for (auto &[to_vertex, existing_edge]: adjacency_list[from]) {
             if (existing_edge->label == label && to_vertex == to) {
-                existing_edge->timestamp = timestamp; // Update the timestamp if the edge exists
-                existing_edge->expiration_time = expiration_time;
-                delete_timed_edge(existing_edge->time_pos);
-
-                // Update the time sequence list, ensuring the list remains sorted by timestamp
-                t_edge = new timed_edge(existing_edge);
-                add_timed_edge(t_edge);
-                existing_edge->time_pos = t_edge;
-
-                return false;
+                return nullptr;
             }
         }
 
+        // Otherwise, create a new edge
         auto *edge = new sg_edge(from, to, label, timestamp);
 
         edge->expiration_time = expiration_time;
@@ -170,17 +175,10 @@ public:
             m2 += (density[from] - old_mean) * (density[from] - mean);
         }
 
-        t_edge = new timed_edge(edge);
-        add_timed_edge(t_edge);
-        edge->time_pos = t_edge;
-
-        return true;
+        return edge;
     }
 
-    bool remove_edge(const sg_edge *edge_to_delete) { // delete an edge from the snapshot graph
-        const unsigned int from = edge_to_delete->s;
-        const unsigned int to = edge_to_delete->d;
-        const int label = edge_to_delete->label;
+    bool remove_edge(unsigned from, unsigned to, unsigned label) { // delete an edge from the snapshot graph
 
         // Check if the vertex exists in the adjacency list
         if (adjacency_list.find(from) == adjacency_list.end()) {
@@ -194,6 +192,7 @@ public:
             // Check if this is the edge to remove
             if (it->first == to && edge->label == label) {
 
+                //cout << "Removing edge (" << from << ", " << to << ", " << label << ")" << endl;
                 // Remove the edge from the adjacency list
                 edges.erase(it);
 
@@ -242,15 +241,18 @@ public:
                 // if ( cur_edge->timestamp % 3600 == 0) cout << "evict element at t " << cur_edge->timestamp / 3600 << " ,evict time: " << timestamp / 3600 << endl;
                 evicted++;
                 deleted_edges.emplace_back(cur_edge->s, cur_edge->d, cur_edge->timestamp, cur_edge->label, cur_edge->expiration_time);
-                remove_edge(cur_edge); // update adjacency list of snapshot graph
+                // remove_edge(cur_edge); // update adjacency list of snapshot graph
                 delete_timed_edge(time_list_cur);
                 delete cur_edge;
             }
             time_list_cur = time_list_cur->next;
         }
         // cout << "extended: " << extended << " vs expired: " << expired << endl;
-        if (!time_list_head) // if the list is empty, the tail pointer should also be NULL;
+        if (!time_list_head) {
+            // if the list is empty, the tail pointer should also be NULL;
             time_list_tail = nullptr;
+            cout << "time list is empty" << endl;
+        }
     }
 
     void get_timed_all_suc(unsigned int s, vector<edge_info> &sucs) {

@@ -171,7 +171,7 @@ public:
 				else
 				{
 					tree_node* dst_pt = tree_pt->node_map[dst_state]->index[d];
-					if (dst_pt->timestamp < time) // if the dst node exit but has a smaller timestamp, update its timestamp, and use expand to propagate the new timestamp down.
+					if (dst_pt->timestamp < time) // if the dst node exists but has a smaller timestamp, update its timestamp, and use expand to propagate the new timestamp down.
 					{
 						if (dst_pt->parent != src_pt)
 							tree_pt->substitute_parent(src_pt, dst_pt);
@@ -184,18 +184,16 @@ public:
 		}
 	}
 
-	void insert_edge_extended(unsigned int s, unsigned int d, unsigned int label, int timestamp, int exp) //  a new snapshot graph edge (s, d) is inserted, update the spanning forest accordingly.
+	sg_edge * insert_edge_extended(unsigned int s, unsigned int d, unsigned int label, int timestamp, int exp) //  a new snapshot graph edge (s, d) is inserted, update the spanning forest accordingly.
 	{
-		// todo Insert expiration time also in the snapshot graph
-		if (aut->acceptable_labels.find(label) == aut->acceptable_labels.end()) // if the edge is not a part of the regular expression, we do not process this edge;
-			return;
-		g->insert_edge(s, d, label, timestamp, exp);
+
+		sg_edge* new_sg_edge = g->insert_edge(s, d, label, timestamp, exp);
 
 		if (aut->get_suc(0, label) != -1 && forests.find(merge_long_long(s, 0)) == forests.end()) // if this edge can be accepted by the initial state, and this is no spanning tree with root (s, 0), we add this tree
 		{
-			RPQ_tree* new_tree = new RPQ_tree();
+			auto* new_tree = new RPQ_tree();
 			// todo Propagating expiration time from here
-			new_tree->root = add_node(new_tree, s, 0, s, NULL, MAX_INT, MAX_INT, exp);
+			new_tree->root = add_node(new_tree, s, 0, s, nullptr, MAX_INT, MAX_INT, exp);
 			forests[merge_long_long(s, 0)] = new_tree;
 		}
 		vector<pair<int, int> >vec;
@@ -203,10 +201,10 @@ public:
 		for (auto & i : vec) {
 			unsigned int src_state = i.first;
 			unsigned int dst_state = i.second;
-			map<unsigned int, tree_info_index*>::iterator index_iter2 = v2t_index.find(src_state);
+			auto index_iter2 = v2t_index.find(src_state);
 			if (index_iter2 != v2t_index.end())
 			{
-				unordered_map<unsigned int, tree_info*>::iterator tree_iter = index_iter2->second->tree_index.find(s);
+				auto tree_iter = index_iter2->second->tree_index.find(s);
 				if (tree_iter != index_iter2->second->tree_index.end()) {
 					tree_info* tmp = tree_iter->second;
 					while (tmp)
@@ -218,6 +216,8 @@ public:
 				}
 			}
 		}
+
+		return new_sg_edge;
 	}
 	void results_update(int time) // given the threshold of expiration, delete all the expired result pairs.
 	{
@@ -265,12 +265,11 @@ public:
 		}
 	}
 
-	void expire(int current_time) // given current time, delete the expired tree nodes and results.
+	void expire(int current_time, const vector<edge_info>& deleted_edges) // given current time, delete the expired tree nodes and results.
 	{
 		// int expire_time = current_time - g->window_size; // compute the threshold of expiration.
 		// results_update(frontier); // delete expired results
-		vector<edge_info> deleted_edges;
-		g->expire(current_time, deleted_edges); // delete expired graph edges.
+		// g->expire(current_time, deleted_edges); // delete expired graph edges.
 
 		// for each expired edge, find the expired nodes in the spanning forest
 		// significant edges will not be erased nor from the graph nor from the forest, this leads to having potentially
