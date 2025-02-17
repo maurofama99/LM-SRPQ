@@ -112,7 +112,7 @@ int main(int argc, char *argv[]) {
 
             /* ADD */
             // update adjacency list of snapshot graph, if edge exists, return null
-            cout << "DEBUG: Inserting edge (" << s << ", " << d << ", " << l << ", " << time << ")\n";
+            // cout << "DEBUG: Inserting edge (" << s << ", " << d << ", " << l << ", " << time << ")\n";
             sg_edge *new_sgt = sg->insert_edge(edge_number, s, d, l, time, window_close);
 
             // duplicate handling in tuple list, important to not evict an updated edge
@@ -164,8 +164,7 @@ int main(int argc, char *argv[]) {
             /* QUERY */
             // add sgt to RPQ forest
             query->s_path(new_sgt);
-
-            f->printForest();
+            // f->printForest();
 
             /* EVICT */
             if (evict) {
@@ -185,12 +184,13 @@ int main(int argc, char *argv[]) {
 
                 timed_edge *current = evict_start_point;
                 while (current && current != evict_end_point) {
-                    cout << "DEBUG: Evicting edge (" << current->edge_pt->s << ", " << current->edge_pt->d << ", " << current->edge_pt->label << ", " << current->edge_pt->timestamp << ")\n";
+                    // cout << "DEBUG: Evicting edge (" << current->edge_pt->s << ", " << current->edge_pt->d << ", " << current->edge_pt->label << ", " << current->edge_pt->timestamp << ")\n";
                     auto cur_edge = current->edge_pt;
 
                     if (sg->get_zscore(cur_edge->s) > sg->zscore_threshold) {
                         // cout << "DEBUG: Saved edge (" << cur_edge->s << ", " << cur_edge->d << ", " << cur_edge->label << ", " << cur_edge->timestamp << ", z_score: " << sg->get_zscore(cur_edge->s) << endl;
                         sg->saved_edges++;
+
                     }
 
                     deleted_vertexes.insert(cur_edge->s); // schedule for further RQP Forest deletion
@@ -218,10 +218,12 @@ int main(int argc, char *argv[]) {
                 f->expire(deleted_vertexes);
                 deleted_vertexes.clear();
 
-                f->printForest();
-                cout << "DEBUG: Window evicted\n\n";
+                // f->printForest();
+                // cout << "DEBUG: Window evicted\n\n";
             }
 
+            /* DEBUG: Print active windows */
+            /*
             for (const auto &window: windows) {
                 if (window.evicted) continue;
                 cout << "Window [" << window.t_open << ", " << window.t_close << "]\n";
@@ -235,18 +237,18 @@ int main(int argc, char *argv[]) {
                 }
                 cout << endl;
             }
+            */
 
             if (time >= checkpoint * 3600) {
                 checkpoint += checkpoint;
                 printf("edge number: %u\n", edge_number);
                 printf("saved edges: %d\n", sg->saved_edges);
                 printf("avg degree: %f\n", sg->mean);
-                printf("results: %d\n", query->results_count);
+                printf("results: %d\n\n", query->results_count);
             }
         }
 
-        // print results
-        query->printResultSet();
+        // query->printResultSet();
         printf("results count: %d\n", query->results_count);
 
         clock_t finish = clock();

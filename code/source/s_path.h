@@ -34,6 +34,21 @@ struct visitedpairHash {
     }
 };
 
+struct result {
+    int destination;
+    unsigned int timestamp;
+
+    bool operator==(const result& other) const {
+        return destination == other.destination && timestamp == other.timestamp;
+    }
+};
+
+struct resultHash {
+    size_t operator()(const result& p) const {
+        return hash<int>()(p.destination) ^ hash<unsigned int>()(p.timestamp);
+    }
+};
+
 class SPathHandler {
 public:
 
@@ -41,21 +56,17 @@ public:
     Forest& forest;
     streaming_graph& sg;
 
-    unordered_map<int,std::vector<::pair<int,unsigned>>> result; // Maps source vertex to destination vertex and timestamp of path creation
+    unordered_map<int,std::unordered_set<result, resultHash>> result; // Maps source vertex to destination vertex and timestamp of path creation
     int results_count = 0;
 
     SPathHandler(FiniteStateAutomaton& fsa, Forest& forest, streaming_graph& sg)
         : fsa(fsa), forest(forest), sg(sg) {
     }
 
-    void printResultSet() const {
-        for (const auto &pair : result) {
-            if (pair.second.empty()) {
-                continue;
-            }
-            std::cout << "Vertex " << pair.first << ":\n";
-            for (const auto &res : pair.second) {
-                std::cout << "  Destination: " << res.first << ", Timestamp: " << res.second << "\n";
+    void printResultSet() {
+        for (const auto&[source, destinations] : result) {
+            for (const auto& destination : destinations) {
+                cout << "Path from " << source << " to " << destination.destination << " at time " << destination.timestamp << endl;
             }
         }
     }
@@ -79,8 +90,9 @@ public:
                         forest.addChildToParent(tree.rootVertex, element.vb, element.sb, element.edge_id, element.vd, element.sd);
                         if (fsa.isFinalState(element.sd)) {
                             // update result set
-                            result[tree.rootVertex].emplace_back(element.vd, edge->timestamp);
-                            results_count++;
+                            if (result[tree.rootVertex].insert({element.vd, edge->timestamp}).second) {
+                                results_count++;
+                            }
                         }
                     }
                     // for all vertex <vq,sq> where exists a successor vertex in the snapshot graph where the label the same as the transition in the automaton from the state sj to state sq, push into Q
