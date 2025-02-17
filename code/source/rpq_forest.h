@@ -18,8 +18,7 @@ struct Node {
     std::vector<Node*> children;
     Node* parent;
 
-    Node(int id, int vertex, int state, Node* parent)
-        : id(id), vertex(vertex), state(state), parent(parent){}
+    Node(int child_id, int child_vertex, int child_state, Node * node) : id(child_id), vertex(child_vertex), state(child_state), parent(node) {};
 };
 
 struct Tree {
@@ -54,7 +53,8 @@ public:
     // it exists only one pair vertex-state that can be root of a tree
     void addTree(int rootId, int rootVertex, int rootState) {
         if (trees.find(rootVertex) == trees.end()) {
-            trees[rootVertex] = {rootVertex, new Node(rootId, rootVertex, rootState, nullptr), false};
+            auto rootNode = new Node(rootId, rootVertex, rootState, nullptr);
+            trees[rootVertex] = {rootVertex, rootNode, false};
             vertex_tree_map[rootVertex].insert(trees[rootVertex]);
         }
     }
@@ -82,15 +82,13 @@ public:
      */
     std::vector<Tree> findTreesWithNode(int vertex, int state) {
         std::vector<Tree> result;
-
         // TODO Optimize by storing the state in the vertex-tree map
-       if (vertex_tree_map.count(vertex)) {
-           for (auto tree: vertex_tree_map.find(vertex)->second) {
-               if (searchNode(tree.rootNode, vertex, state)) result.push_back(tree);
-               result.push_back(tree);
-           }
-       }
-
+        if (vertex_tree_map.count(vertex)) {
+            for (auto tree: vertex_tree_map.find(vertex)->second) {
+                if (searchNode(tree.rootNode, vertex, state)) result.push_back(tree);
+                result.push_back(tree);
+            }
+        }
         return result;
     }
 

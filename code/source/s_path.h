@@ -39,13 +39,14 @@ struct result {
     unsigned int timestamp;
 
     bool operator==(const result& other) const {
-        return destination == other.destination && timestamp == other.timestamp;
+        return destination == other.destination;
     }
 };
 
 struct resultHash {
     size_t operator()(const result& p) const {
-        return hash<int>()(p.destination) ^ hash<unsigned int>()(p.timestamp);
+        return hash<int>()(p.destination);
+        //^ hash<unsigned int>()(p.timestamp);
     }
 };
 
@@ -71,6 +72,17 @@ public:
         }
     }
 
+    // export the result set into a file in form of csv with columns source, destination, timestamp
+    void exportResultSet(const string& filename) {
+        ofstream file(filename);
+        for (const auto&[source, destinations] : result) {
+            for (const auto& destination : destinations) {
+                file << source << "," << destination.destination << "," << destination.timestamp << endl;
+            }
+        }
+        file.close();
+    }
+
     void s_path(sg_edge* edge) {
         auto statePairs = fsa.getStatePairsWithTransition(edge->label); // (sb, sd)
         for (const auto& sb_sd : statePairs) {   // forall (sb, sd) where delta(sb, label) = sd
@@ -90,6 +102,7 @@ public:
                         forest.addChildToParent(tree.rootVertex, element.vb, element.sb, element.edge_id, element.vd, element.sd);
                         if (fsa.isFinalState(element.sd)) {
                             // update result set
+                            // check if in the result set we already have a path from root to element.vd
                             if (result[tree.rootVertex].insert({element.vd, edge->timestamp}).second) {
                                 results_count++;
                             }

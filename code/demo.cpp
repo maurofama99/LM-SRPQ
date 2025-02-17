@@ -250,6 +250,7 @@ int main(int argc, char *argv[]) {
 
         // query->printResultSet();
         printf("results count: %d\n", query->results_count);
+        query->exportResultSet(prefix + "S-PATH-results" + postfix);
 
         clock_t finish = clock();
         cout << "insert finished " << endl;
