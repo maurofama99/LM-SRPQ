@@ -1,39 +1,29 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 
-# Funzione per leggere la lista di adiacenza da un file
-def read_adj_list(file_path):
-    adj_list = {}
-    with open(file_path, 'r') as f:
-        for line in f:
-            # Rimuovi eventuali spazi extra e newline
-            line = line.strip()
-            # Se la linea non è vuota
-            if line:
-                # Dividi il nodo dalla lista dei vicini
-                node, neighbors = line.split(':')
-                # Rimuovi eventuali spazi e convertili in una lista
-                neighbors = neighbors.strip()[1:-1].split(', ') if neighbors.strip() else []
-                adj_list[node] = neighbors
-    return adj_list
+def read_edges_from_file(filename):
+    edges = []
+    with open(filename, 'r') as file:
+        for line in file:
+            source, destination, label, timestamp = line.split()
+            edges.append((int(source), int(destination), (label, timestamp)))
+    return edges
 
-# Funzione principale
-def main():
-    # Percorso del file di input
-    file_path = 'graph_aj.txt'  # Sostituisci con il percorso del tuo file
+def draw_graph(edges):
+    G = nx.DiGraph()
 
-    # Lettura della lista di adiacenza dal file
-    adj_list = read_adj_list(file_path)
+    for source, destination, label in edges:
+        G.add_edge(source, destination, label=label)
 
-    # Creazione del grafo da lista di adiacenza
-    G = nx.Graph(adj_list)
+    pos = nx.spring_layout(G, seed=42)
+    labels = {(u, v): f"{d[0]}, {d[1]}" for u, v, d in G.edges(data='label')}
 
-    # Disegno del grafo
-    plt.figure(figsize=(8, 8))
-    nx.draw(G, with_labels=True, node_color='lightblue', node_size=3000, font_size=10, font_weight='bold', edge_color='gray')
-    plt.title("Grafo dalla lista di adiacenza")
+    plt.figure(figsize=(10, 6))
+    nx.draw(G, pos, with_labels=True, node_color='lightblue', edge_color='gray', node_size=2000, font_size=10, font_weight='bold')
+    nx.draw_networkx_edge_labels(G, pos, edge_labels=labels, font_size=8, font_color='red')
     plt.show()
 
-# Punto di ingresso del programma
 if __name__ == "__main__":
-    main()
+    filename = "../dataset/debug_small.txt"  # Cambia con il nome del file di input
+    edges = read_edges_from_file(filename)
+    draw_graph(edges)
