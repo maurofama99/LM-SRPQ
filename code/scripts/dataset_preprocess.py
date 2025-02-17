@@ -42,8 +42,8 @@ def main():
     # File di configurazione
     config_file = "config_ldbc.txt"
     # File di input e output
-    input_file = "/Users/maurofama/Documents/phd/frames4pgs/LM-SRPQ/code/dataset/ldbc-sf10-updatestream.txt"
-    output_file = "/Users/maurofama/Documents/phd/frames4pgs/LM-SRPQ/code/dataset/ldbc-sf10-updatestream_postprocess_25kk.txt"
+    input_file = "//code/dataset/ldbc-sf10-updatestream.txt"
+    output_file = "//code/dataset/ldbc-sf10-updatestream_postprocess_25kk.txt"
 
     # Limite sul numero di righe del file di output (-1 per nessun limite)
     max_lines = 25000000  # Cambia questo valore come necessario
