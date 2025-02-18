@@ -11,8 +11,8 @@ def convert_labels(input_file, output_file, label_map):
             writer.writerow([source, destination, label, timestamp])
 
 if __name__ == "__main__":
-    input_file = '../dataset/so-stream_debug_5kk.csv'
-    output_file = '../dataset/so-stream_debug_5kk_regex.csv'
+    input_file = '../dataset/so/so-stream_debug_500k.csv'
+    output_file = '../dataset/so/so-stream_debug_500k_regex.csv'
     label_map = {
         1: 'a',
         2: 'b',

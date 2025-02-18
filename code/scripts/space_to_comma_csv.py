@@ -9,6 +9,6 @@ def convert_space_to_comma(input_file, output_file):
             writer.writerow(row)
 
 if __name__ == "__main__":
-    input_file = '../dataset/so-stream_debug_5kk.txt'
-    output_file = '../dataset/so-stream_debug_5kk.csv'
+    input_file = '../dataset/so/so-stream_debug_500k.txt'
+    output_file = '../dataset/so/so-stream_debug_500k.csv'
     convert_space_to_comma(input_file, output_file)

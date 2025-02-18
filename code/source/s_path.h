@@ -83,7 +83,8 @@ public:
         file.close();
     }
 
-    void s_path(sg_edge* edge) {
+    void s_path(const sg_edge* edge) {
+        bool added = false;
         auto statePairs = fsa.getStatePairsWithTransition(edge->label); // (sb, sd)
         for (const auto& sb_sd : statePairs) {   // forall (sb, sd) where delta(sb, label) = sd
             if (sb_sd.first == 0 && !forest.hasTree(edge->s)) { // if sb=0 and there is no tree with root vertex vb
@@ -97,22 +98,30 @@ public:
                 while (!Q.empty()) {
                     auto element = Q.front();
                     Q.pop(); // (⟨vi,si⟩, <vj,sj>, edge_id)
-                    if (forest.findNodeInTree(tree.rootVertex, element.vd, element.sd) == nullptr) { // if tree does not contain <vj,sj>
+                    if (!forest.findNodeInTree(tree.rootVertex, element.vd, element.sd)) { // if tree does not contain <vj,sj> // TODO instead of checking for nullptr save the node and reuse it
                         // add <vj,sj> into tree with parent vi_si
-                        forest.addChildToParent(tree.rootVertex, element.vb, element.sb, element.edge_id, element.vd, element.sd);
-                        if (fsa.isFinalState(element.sd)) {
-                            // update result set
-                            // check if in the result set we already have a path from root to element.vd
-                            if (result[tree.rootVertex].insert({element.vd, edge->timestamp}).second) {
-                                results_count++;
-                            }
+                        if (!forest.addChildToParent(tree.rootVertex, element.vb, element.sb, element.edge_id, element.vd, element.sd)) continue;
+                    } else if (element.vb == edge->s && element.vd == edge->d && forest.findNodeInTree(tree.rootVertex, element.vb, element.sb)) { // if tree contains <vi,si> update subtree starting from <vi,si> to respect FIFO
+                        forest.changeParent(tree.rootVertex, element.vd, element.sd, element.vb, element.sb);
+                    } else continue;
+
+                    if (fsa.isFinalState(element.sd)) {
+                        // update result set
+                        // check if in the result set we already have a path from root to element.vd
+                        if (result[tree.rootVertex].insert({element.vd, edge->timestamp}).second) {
+                            results_count++;
                         }
                     }
+                    /*
+                    else if (forest.findNodeInTree(tree.rootVertex, element.vb, element.sb) && (element.vb == edge->s && element.vd == edge->d)) { // if tree contains <vi,si>
+                        // update the parent of the node to respect FIFO
+                        forest.changeParent(tree.rootVertex, element.vd, element.sd, element.vb, element.sb);
+                    } else continue;
+                    */
                     // for all vertex <vq,sq> where exists a successor vertex in the snapshot graph where the label the same as the transition in the automaton from the state sj to state sq, push into Q
                     for (auto successors: sg.get_all_suc(element.vd)) {
                         // if the transition exits in the automaton from sj to sq
-                        auto sq = fsa.getNextState(element.sd, successors.label);
-                        if (sq != -1) {
+                        if (auto sq = fsa.getNextState(element.sd, successors.label); sq != -1) {
                             if (visited.count({successors.d, sq}) <= 0) { // if <vq,sq> is not in visited
                                 Q.push(tree_expansion{element.vd, element.sd, successors.d, sq, successors.id});
                                 visited.insert({element.vd, element.sd});

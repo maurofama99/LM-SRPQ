@@ -10,7 +10,7 @@ class Neo4jApp:
 
     def create_edge(self, from_node, to_node, relationship):
         with self.driver.session() as session:
-            session.write_transaction(self._create_and_return_edge, from_node, to_node, relationship)
+            session.execute_write(self._create_and_return_edge, from_node, to_node, relationship)
 
     @staticmethod
     def _create_and_return_edge(tx, from_node, to_node, relationship):
@@ -30,7 +30,7 @@ class Neo4jApp:
 
     def delete_all(self):
         with self.driver.session() as session:
-            session.write_transaction(self._delete_all)
+            session.execute_write(self._delete_all)
 
     @staticmethod
     def _delete_all(tx):
@@ -50,17 +50,29 @@ if __name__ == "__main__":
     app.delete_all()
 
     # Load graph edges from CSV file
-    app.load_edges_from_csv('../../dataset/so-stream_debug_5kk_regex.csv')
+    app.load_edges_from_csv('../../dataset/so/so-stream_debug_30_regex.csv')
 
+    # abc
     query = """
-            MATCH (start)-[:a]->(middle)
-            OPTIONAL MATCH (middle)-[:b*0..]->(end)
-            RETURN COUNT(DISTINCT end) AS distinct_count
-            """
-    results = app.run_query(query)
+        MATCH (start)-[:a]->(middle1)-[:b]->(middle2)-[:c]->(end)
+        RETURN DISTINCT start, end
+        """
 
-    for record in results:
-        print(record["distinct_count"])
-        results = app.run_query(query)
+    # ab*
+    queryabstar = """
+                     MATCH (start)-[:a]->(middle)
+                     OPTIONAL MATCH (middle)-[:b*0..]->(end)
+                     RETURN DISTINCT start, end
+                     """
+
+    results = app.run_query(queryabstar)
+
+    with open('db-results.csv', 'w', newline='') as csvfile:
+        fieldnames = ['start', 'end']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+        writer.writeheader()
+        for record in results:
+            writer.writerow({'start': record['start']['name'], 'end': record['end']['name']})
 
     app.close()

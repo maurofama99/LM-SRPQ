@@ -10,6 +10,8 @@
 #include "streaming_graph.h"
 #include "s_path.h"
 
+#define BACKWARD_RETENTION false
+
 using namespace std;
 
 bool compare(unsigned int a, unsigned int b) {
@@ -61,8 +63,8 @@ int main(int argc, char *argv[]) {
 
     vector<window> windows;
 
-    unsigned long s, d, l;
-    unsigned long long t;
+    unsigned int s, d, l;
+    unsigned int t;
     string prefix = "./"; // path of the output files
     string postfix = ".txt";
 
@@ -186,20 +188,22 @@ int main(int argc, char *argv[]) {
                 while (current && current != evict_end_point) {
                     // cout << "DEBUG: Evicting edge (" << current->edge_pt->s << ", " << current->edge_pt->d << ", " << current->edge_pt->label << ", " << current->edge_pt->timestamp << ")\n";
                     auto cur_edge = current->edge_pt;
+                    auto next = current->next;
 
-                    if (sg->get_zscore(cur_edge->s) > sg->zscore_threshold) {
+                    if (sg->get_zscore(cur_edge->s) > sg->zscore_threshold && BACKWARD_RETENTION) {
                         // cout << "DEBUG: Saved edge (" << cur_edge->s << ", " << cur_edge->d << ", " << cur_edge->label << ", " << cur_edge->timestamp << ", z_score: " << sg->get_zscore(cur_edge->s) << endl;
                         sg->saved_edges++;
-
+                        auto shift = to_evict[0] + static_cast<size_t>(std::ceil(sg->get_zscore(cur_edge->s)));
+                        auto target_window_index = shift < last_window_index? shift : last_window_index;
+                        sg->shift_timed_edge(cur_edge->time_pos, windows[target_window_index].first);
+                    } else {
+                        deleted_vertexes.insert(cur_edge->s); // schedule for further RQP Forest deletion
+                        deleted_vertexes.insert(cur_edge->d);
+                        sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label); // delete from adjacency list
+                        sg->delete_timed_edge(current); // delete from window state store
                     }
 
-                    deleted_vertexes.insert(cur_edge->s); // schedule for further RQP Forest deletion
-                    deleted_vertexes.insert(cur_edge->d);
-                    sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label);
-                    // update adjacency list of snapshot graph
-                    auto tmp = current->next;
-                    sg->delete_timed_edge(current);
-                    current = tmp;
+                    current = next;
                 }
 
                 // mark window as evicted
@@ -250,7 +254,7 @@ int main(int argc, char *argv[]) {
 
         // query->printResultSet();
         printf("results count: %d\n", query->results_count);
-        query->exportResultSet(prefix + "S-PATH-results" + postfix);
+        query->exportResultSet("/Users/maurofama/Documents/phd/frames4pgs/CbAW4DGSP/code/scripts/neo4j/stream_results_my.csv");
 
         clock_t finish = clock();
         cout << "insert finished " << endl;

@@ -59,10 +59,36 @@ public:
         }
     }
 
-    void addChildToParent(int rootVertex, int parentVertex, int parentState, int childId, int childVertex, int childState) {
+    bool addChildToParent(int rootVertex, int parentVertex, int parentState, int childId, int childVertex, int childState) {
         if (Node* parent = findNodeInTree(rootVertex, parentVertex, parentState)) {
             parent->children.push_back(new Node(childId, childVertex, childState, parent));
             vertex_tree_map[childVertex].insert(trees[rootVertex]);
+            return true;
+        }
+        return false;
+    }
+
+    void changeParent(int rootVertex, int childVertex, int childState, int newParentVertex, int newParentState) {
+        Node* child = findNodeInTree(rootVertex, childVertex, childState);
+        Node* newParent = findNodeInTree(rootVertex, newParentVertex, newParentState);
+
+        if (child && newParent) {
+            // Remove child from its current parent's children list
+            if (child->parent) {
+                auto& siblings = child->parent->children;
+                siblings.erase(std::remove(siblings.begin(), siblings.end(), child), siblings.end());
+            } else {
+                cout << "ERROR: Could not find new parent in tree" << endl;
+                exit(1);
+            }
+
+            // Set the new parent
+            child->parent = newParent;
+            newParent->children.push_back(child);
+        } else {
+            if (!child) std::cout << "ERROR: Could not find child in tree" << std::endl;
+            if (!newParent) std::cout << "ERROR: Could not find new parent in tree" << std::endl;
+            exit(1);
         }
     }
 
@@ -145,7 +171,7 @@ private:
 
     Node* searchNodeParent(Node* node, int vertex, int state, Node** parent = nullptr) {
         if (!node) return nullptr;
-        if (node->vertex == vertex && (node->state == state || state == -2)) return node;
+        if (node->vertex == vertex && node->state == state) return node;
         for (Node* child : node->children) {
             if (parent) *parent = node;
             Node* found = searchNodeParent(child, vertex, state, parent);

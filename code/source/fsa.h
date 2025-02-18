@@ -32,7 +32,7 @@ public:
         finalStates.insert(state);
     }
     
-    std::vector<std::pair<int, int>> getStatePairsWithTransition(int label) const {
+    [[nodiscard]] std::vector<std::pair<int, int>> getStatePairsWithTransition(int label) const {
         std::vector<std::pair<int, int>> statePairs;
         for (const auto& pair : transitions) {
             for (const auto& transition : pair.second) {
@@ -44,7 +44,7 @@ public:
         return statePairs;
     }
     
-    int getNextState(int currentState, int label) {
+    int getNextState(const int currentState, const int label) {
         for (const auto& transition : transitions[currentState]) {
             if (transition.label == label) {
                 return transition.toState;
@@ -53,16 +53,17 @@ public:
         return -1; // No valid transition
     }
     
-    std::vector<std::pair<int, int>> getAllSuccessors(int state) {
+    std::vector<std::pair<int, int>> getAllSuccessors(const int state) {
         std::vector<std::pair<int, int>> successors;
         for (const auto& transition : transitions[state]) {
             successors.emplace_back(transition.label, transition.toState);
         }
         return successors;
     }
-    bool hasLabel(const int label) const {
-        for (const auto& pair : transitions) {
-            for (const auto& transition : pair.second) {
+
+    [[nodiscard]] bool hasLabel(const int label) const {
+        for (const auto&[fst, snd] : transitions) {
+            for (const auto& transition : snd) {
                 if (transition.label == label) {
                     return true;
                 }
@@ -71,7 +72,7 @@ public:
         return false;
     }
 
-    bool isFinalState(int state) const {
+    [[nodiscard]] bool isFinalState(const int state) const {
         return finalStates.find(state) != finalStates.end();
     }
     
