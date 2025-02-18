@@ -73,7 +73,7 @@ public:
     double mean = 0;
     double m2 = 0;
     unordered_map<unsigned int, int> density;
-    double zscore_threshold = 2;
+    double zscore_threshold = 1.5;
     int slide_threshold = 10;
     int saved_edges = 0;
     int slide{};

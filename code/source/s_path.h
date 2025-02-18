@@ -98,12 +98,13 @@ public:
                 while (!Q.empty()) {
                     auto element = Q.front();
                     Q.pop(); // (⟨vi,si⟩, <vj,sj>, edge_id)
-                    if (!forest.findNodeInTree(tree.rootVertex, element.vd, element.sd)) { // if tree does not contain <vj,sj> // TODO instead of checking for nullptr save the node and reuse it
+                    if (!forest.findNodeInTree(tree.rootVertex, element.vd, element.sd)) { // if tree does not contain <vj,sj>
                         // add <vj,sj> into tree with parent vi_si
                         if (!forest.addChildToParent(tree.rootVertex, element.vb, element.sb, element.edge_id, element.vd, element.sd)) continue;
-                    } else if (element.vb == edge->s && element.vd == edge->d && forest.findNodeInTree(tree.rootVertex, element.vb, element.sb)) { // if tree contains <vi,si> update subtree starting from <vi,si> to respect FIFO
+                    } else if (forest.findNodeInTree(tree.rootVertex, element.vb, element.sb) && element.vb == edge->s && element.vd == edge->d) { // if tree contains <vi,si> update subtree starting from <vi,si> to respect LILO
                         forest.changeParent(tree.rootVertex, element.vd, element.sd, element.vb, element.sb);
-                    } else continue;
+                    } else
+                        continue;
 
                     if (fsa.isFinalState(element.sd)) {
                         // update result set

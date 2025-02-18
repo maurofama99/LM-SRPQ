@@ -10,7 +10,7 @@
 #include "streaming_graph.h"
 #include "s_path.h"
 
-#define BACKWARD_RETENTION false
+#define BACKWARD_RETENTION true
 
 using namespace std;
 
@@ -193,7 +193,7 @@ int main(int argc, char *argv[]) {
                     if (sg->get_zscore(cur_edge->s) > sg->zscore_threshold && BACKWARD_RETENTION) {
                         // cout << "DEBUG: Saved edge (" << cur_edge->s << ", " << cur_edge->d << ", " << cur_edge->label << ", " << cur_edge->timestamp << ", z_score: " << sg->get_zscore(cur_edge->s) << endl;
                         sg->saved_edges++;
-                        auto shift = to_evict[0] + static_cast<size_t>(std::ceil(sg->get_zscore(cur_edge->s)));
+                        auto shift = 1 + to_evict[0] + static_cast<size_t>(std::ceil(sg->get_zscore(cur_edge->s)));
                         auto target_window_index = shift < last_window_index? shift : last_window_index;
                         sg->shift_timed_edge(cur_edge->time_pos, windows[target_window_index].first);
                     } else {

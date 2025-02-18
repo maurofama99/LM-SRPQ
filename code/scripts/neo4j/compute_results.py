@@ -50,24 +50,24 @@ if __name__ == "__main__":
     app.delete_all()
 
     # Load graph edges from CSV file
-    app.load_edges_from_csv('../../dataset/so/so-stream_debug_30_regex.csv')
+    app.load_edges_from_csv('../../dataset/so/so-stream_debug_500k_regex.csv')
 
     # abc
-    query = """
+    query_abc = """
         MATCH (start)-[:a]->(middle1)-[:b]->(middle2)-[:c]->(end)
         RETURN DISTINCT start, end
         """
 
     # ab*
-    queryabstar = """
+    query_abstar = """
                      MATCH (start)-[:a]->(middle)
                      OPTIONAL MATCH (middle)-[:b*0..]->(end)
                      RETURN DISTINCT start, end
                      """
 
-    results = app.run_query(queryabstar)
+    results = app.run_query(query_abc)
 
-    with open('db-results.csv', 'w', newline='') as csvfile:
+    with open('db-results_500k.csv', 'w', newline='') as csvfile:
         fieldnames = ['start', 'end']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
