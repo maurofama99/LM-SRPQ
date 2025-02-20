@@ -35,7 +35,7 @@ public:
     }
 };
 
-int setup_automaton(unsigned int query_type, FiniteStateAutomaton *aut, unsigned int *scores, char *argv[]);
+int setup_automaton(int query_type, FiniteStateAutomaton *aut, unsigned int *scores, char *argv[]);
 
 int main(int argc, char *argv[]) {
     unsigned int algorithm = atoi(argv[1]);
@@ -170,7 +170,8 @@ int main(int argc, char *argv[]) {
 
             /* EVICT */
             if (evict) {
-                std::unordered_set<int> deleted_vertexes;
+                // cout << "DEBUG: Evicting window\n";
+                std::unordered_set<unsigned int> deleted_vertexes;
                 timed_edge *evict_start_point = windows[to_evict[0]].first;
                 timed_edge *evict_end_point = windows[to_evict.back() + 1].first;
 
@@ -193,7 +194,7 @@ int main(int argc, char *argv[]) {
                     if (sg->get_zscore(cur_edge->s) > sg->zscore_threshold && BACKWARD_RETENTION) {
                         // cout << "DEBUG: Saved edge (" << cur_edge->s << ", " << cur_edge->d << ", " << cur_edge->label << ", " << cur_edge->timestamp << ", z_score: " << sg->get_zscore(cur_edge->s) << endl;
                         sg->saved_edges++;
-                        auto shift = 1 + to_evict[0] + static_cast<size_t>(std::ceil(sg->get_zscore(cur_edge->s)));
+                        auto shift = 1 + to_evict.back() + static_cast<size_t>(std::ceil(sg->get_zscore(cur_edge->s)));
                         auto target_window_index = shift < last_window_index? shift : last_window_index;
                         sg->shift_timed_edge(cur_edge->time_pos, windows[target_window_index].first);
                     } else {
@@ -283,7 +284,7 @@ int main(int argc, char *argv[]) {
 }
 
 // Set up the automaton correspondant for each query
-int setup_automaton(unsigned int query_type, FiniteStateAutomaton *aut, unsigned int *scores, char *argv[]) {
+int setup_automaton(int query_type, FiniteStateAutomaton *aut, unsigned int *scores, char *argv[]) {
     int state_num = 0;
 
     if (query_type == 1) {

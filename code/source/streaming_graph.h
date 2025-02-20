@@ -26,12 +26,12 @@ struct timed_edge
 
 struct edge_info // the structure as query result, include all the information of an edge;
 {
-    int s, d;
+    unsigned int s, d;
     int label;
     unsigned int timestamp;
     unsigned int expiration_time;
     int id;
-    edge_info(int src,  int dst, unsigned int time, int label_, unsigned int expiration_time_, int id_) {
+    edge_info(unsigned int src,  unsigned int dst, unsigned int time, int label_, unsigned int expiration_time_, int id_) {
         s = src;
         d = dst;
         timestamp = time;
@@ -47,10 +47,10 @@ public:
     unsigned int timestamp;
     unsigned int expiration_time{};
     timed_edge *time_pos;
-    int s, d;
+    unsigned int s, d;
     int id;
 
-    sg_edge(const int id_, const int src, const  int dst, const int label_, const unsigned int time) {
+    sg_edge(const int id_, const unsigned int src, const unsigned int dst, const int label_, const unsigned int time) {
         id = id_;
         s = src;
         d = dst;
@@ -146,7 +146,7 @@ public:
         return nullptr;
     }
 
-    sg_edge* insert_edge(int edge_id, const int from,  int to, const int label, const unsigned int timestamp,
+    sg_edge* insert_edge(int edge_id, const unsigned int from,  unsigned int to, const int label, const unsigned int timestamp,
                          const unsigned int expiration_time) {
 
         // Check if the edge already exists in the adjacency list
@@ -183,7 +183,7 @@ public:
         return edge;
     }
 
-    bool remove_edge(unsigned from, unsigned to, unsigned label) { // delete an edge from the snapshot graph
+    bool remove_edge(unsigned int from, unsigned int to, int label) { // delete an edge from the snapshot graph
 
         // Check if the vertex exists in the adjacency list
         if (adjacency_list.find(from) == adjacency_list.end()) {

@@ -12,15 +12,15 @@
 #include "streaming_graph.h"
 
 struct tree_expansion {
-    int vb;
+    unsigned int vb;
     int sb;
-    int vd;
+    unsigned int vd;
     int sd;
     int edge_id;
 };
 
 struct visited_pair {
-    int vertex;
+    unsigned int vertex;
     int state;
 
     bool operator==(const visited_pair& other) const {
@@ -30,12 +30,12 @@ struct visited_pair {
 
 struct visitedpairHash {
     size_t operator()(const visited_pair& p) const {
-        return hash<int>()(p.vertex) ^ hash<int>()(p.state);
+        return hash<unsigned int>()(p.vertex) ^ hash<int>()(p.state);
     }
 };
 
 struct result {
-    int destination;
+    unsigned int destination;
     unsigned int timestamp;
 
     bool operator==(const result& other) const {
@@ -45,7 +45,7 @@ struct result {
 
 struct resultHash {
     size_t operator()(const result& p) const {
-        return hash<int>()(p.destination);
+        return hash<unsigned int>()(p.destination);
         //^ hash<unsigned int>()(p.timestamp);
     }
 };
@@ -57,7 +57,7 @@ public:
     Forest& forest;
     streaming_graph& sg;
 
-    unordered_map<int,std::unordered_set<result, resultHash>> result; // Maps source vertex to destination vertex and timestamp of path creation
+    unordered_map<unsigned int,std::unordered_set<result, resultHash>> result; // Maps source vertex to destination vertex and timestamp of path creation
     int results_count = 0;
 
     SPathHandler(FiniteStateAutomaton& fsa, Forest& forest, streaming_graph& sg)
@@ -101,8 +101,8 @@ public:
                     if (!forest.findNodeInTree(tree.rootVertex, element.vd, element.sd)) { // if tree does not contain <vj,sj>
                         // add <vj,sj> into tree with parent vi_si
                         if (!forest.addChildToParent(tree.rootVertex, element.vb, element.sb, element.edge_id, element.vd, element.sd)) continue;
-                    } else if (forest.findNodeInTree(tree.rootVertex, element.vb, element.sb) && element.vb == edge->s && element.vd == edge->d) { // if tree contains <vi,si> update subtree starting from <vi,si> to respect LILO
-                        forest.changeParent(tree.rootVertex, element.vd, element.sd, element.vb, element.sb);
+                    // } else if (forest.findNodeInTree(tree.rootVertex, element.vb, element.sb) && element.vb == edge->s && element.vd == edge->d) { // if tree contains <vi,si> update subtree starting from <vi,si> to respect LILO
+                      //  forest.changeParent(tree.rootVertex, element.vd, element.sd, element.vb, element.sb);
                     } else
                         continue;
 
