@@ -44,7 +44,7 @@ def compare_results(file1, file2):
     print("Duplicate source-destination pairs in second file:", duplicate_pairs_file2)
     print("Pairs where source and destination are the same in first file:", same_source_dest1)
     print("Pairs where source and destination are the same in second file:", same_source_dest2)
-    print("Source-destination pairs in first file but not in second file:", set1-set2)
+    #print("Source-destination pairs in first file but not in second file:", set1-set2)
 
     return {
         "total_results_file1": total_results_file1,

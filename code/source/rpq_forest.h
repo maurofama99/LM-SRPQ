@@ -8,6 +8,9 @@
 #include <iostream>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
+#include <utility>
+#include <stack>
 
 #include "streaming_graph.h"
 
@@ -37,10 +40,22 @@ struct TreeHash {
     }
 };
 
+// Custom hash function for std::pair<unsigned, unsigned>
+struct pair_hash {
+    template <class T1, class T2>
+    std::size_t operator()(const std::pair<T1, T2>& p) const {
+        auto hash1 = std::hash<T1>{}(p.first);
+        auto hash2 = std::hash<T2>{}(p.second);
+        return hash1 ^ (hash2 << 1); // Combine the two hash values
+    }
+};
+
 class Forest {
 public:
     std::unordered_map<unsigned int, Tree> trees; // Currently active trees, Key: root vertex, Value: Tree
     std::unordered_map<unsigned int, std::unordered_set<Tree, TreeHash>> vertex_tree_map; // Maps vertex to tree to which it belongs to
+    // key: pair ts open, ts close, value: a pair of trees (first) and vertex_tree_map (second)
+    std::unordered_map<std::pair<unsigned, unsigned>, std::pair<std::unordered_map<unsigned int, Tree>, std::unordered_map<unsigned int, std::unordered_set<Tree, TreeHash>>>, pair_hash> backup_map;
 
     ~Forest() {
         for (auto&[fst, snd] : trees) {
@@ -101,6 +116,17 @@ public:
         return searchNodeParent(root, vertex, state, parent);
     }
 
+    std::set<unsigned int> getKeySet(unsigned int vertex) {
+        std::set<unsigned int> result;
+
+        if (vertex_tree_map.count(vertex)) {
+            for (auto tree: vertex_tree_map.find(vertex)->second) {
+                if (searchNodeNoState(tree.rootNode, vertex)) result.emplace(tree.rootNode->vertex);
+            }
+        }
+        return result;
+    }
+
     /**
      * @param vertex id of the vertex in the AL
      * @param state state associated to the vertex node
@@ -112,7 +138,6 @@ public:
         if (vertex_tree_map.count(vertex)) {
             for (auto tree: vertex_tree_map.find(vertex)->second) {
                 if (searchNode(tree.rootNode, vertex, state)) result.push_back(tree);
-                result.push_back(tree);
             }
         }
         return result;
@@ -146,6 +171,29 @@ public:
         }
     }
 
+    void deepCopyTreesAndVertexTreeMap(unsigned key1, unsigned key2) {
+        std::unordered_map<unsigned int, Tree> trees_copy;
+        std::unordered_map<unsigned int, std::unordered_set<Tree, TreeHash>> vertex_tree_map_copy;
+
+        // Deep copy trees
+        for (const auto& [rootVertex, tree] : trees) {
+            Tree tree_copy = deepCopyTree(tree);
+            trees_copy[rootVertex] = tree_copy;
+        }
+
+        // Deep copy vertex_tree_map
+        for (const auto& [vertex, tree_set] : vertex_tree_map) {
+            std::unordered_set<Tree, TreeHash> tree_set_copy;
+            for (const auto& tree : tree_set) {
+                tree_set_copy.insert(trees_copy[tree.rootVertex]);
+            }
+            vertex_tree_map_copy[vertex] = tree_set_copy;
+        }
+
+        // Store the copies in the backup_map
+        backup_map[{key1, key2}] = {trees_copy, vertex_tree_map_copy};
+    }
+
     void printTree(Node *node, int depth = 0) const {
         if (!node) return;
         for (int i = 0; i < depth; ++i) std::cout << "  ";
@@ -168,6 +216,52 @@ public:
     }
 
 private:
+
+    Tree deepCopyTree(const Tree& tree) {
+        Tree tree_copy;
+        tree_copy.rootVertex = tree.rootVertex;
+        tree_copy.expired = tree.expired;
+        tree_copy.rootNode = deepCopyNodeIterative(tree.rootNode);
+        return tree_copy;
+    }
+
+    Node* deepCopyNode(Node* node, Node* parent) {
+        if (!node) return nullptr;
+        Node* node_copy = new Node(node->id, node->vertex, node->state, parent);
+        for (Node* child : node->children) {
+            node_copy->children.push_back(deepCopyNode(child, node_copy));
+        }
+        return node_copy;
+    }
+
+    Node* deepCopyNodeIterative(Node* root) {
+        if (!root) return nullptr;
+
+        std::unordered_map<Node*, Node*> node_map;
+        std::queue<Node*> node_queue;
+        node_queue.push(root);
+
+        Node* root_copy = new Node(root->id, root->vertex, root->state, nullptr);
+        node_map[root] = root_copy;
+
+        while (!node_queue.empty()) {
+            Node* current = node_queue.front();
+            node_queue.pop();
+
+            Node* current_copy = node_map[current];
+
+            for (Node* child : current->children) {
+                if (node_map.find(child) == node_map.end()) {
+                    Node* child_copy = new Node(child->id, child->vertex, child->state, current_copy);
+                    node_map[child] = child_copy;
+                    node_queue.push(child);
+                }
+                current_copy->children.push_back(node_map[child]);
+            }
+        }
+
+        return root_copy;
+    }
 
     Node* searchNodeParent(Node* node, unsigned int vertex, int state, Node** parent = nullptr) {
         if (!node) return nullptr;

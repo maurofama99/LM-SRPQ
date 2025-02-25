@@ -1,0 +1,8 @@
+algorithm=1
+input_data_path=/Users/maurofama/Documents/phd/frames4pgs/CbAW4DGSP/code/dataset/so/so-stream_debug_5kk.txt
+output_base_folder=/Users/maurofama/Documents/phd/frames4pgs/CbAW4DGSP/code/scripts/dumps/
+size=20000
+slide=10000
+query_type=4
+labels=1,2,3
+zscore=0.6

@@ -103,7 +103,7 @@ public:
                         if (!forest.addChildToParent(tree.rootVertex, element.vb, element.sb, element.edge_id, element.vd, element.sd)) continue;
                     // } else if (forest.findNodeInTree(tree.rootVertex, element.vb, element.sb) && element.vb == edge->s && element.vd == edge->d) { // if tree contains <vi,si> update subtree starting from <vi,si> to respect LILO
                       //  forest.changeParent(tree.rootVertex, element.vd, element.sd, element.vb, element.sb);
-                    } else
+                    } else // TODO Implement FIFO parent update
                         continue;
 
                     if (fsa.isFinalState(element.sd)) {

@@ -65,7 +65,9 @@ class streaming_graph {
 public:
     unordered_map<unsigned int, vector<pair<unsigned int, sg_edge *> > > adjacency_list;
 
-    int edge_num; // number of edges in the window
+    int edge_num=0; // number of edges in the window
+    int vertex_num=0; // number of vertices in the window
+    double overall_density{}; // overall density of the graph
     timed_edge *time_list_head; // head of the time sequence list;
     timed_edge *time_list_tail; // tail of the time sequence list
 
@@ -73,12 +75,13 @@ public:
     double mean = 0;
     double m2 = 0;
     unordered_map<unsigned int, int> density;
-    double zscore_threshold = 1.5;
+    double zscore_threshold;
     int slide_threshold = 10;
     int saved_edges = 0;
     int slide{};
 
-    explicit streaming_graph() {
+    explicit streaming_graph(const double zscore) {
+        zscore_threshold = zscore;
         edge_num = 0;
         time_list_head = nullptr;
         time_list_tail = nullptr;
@@ -156,13 +159,14 @@ public:
             }
         }
 
-        edge_num++;
+        edge_num++;;
         // Otherwise, create a new edge
         auto *edge = new sg_edge(edge_id, from, to, label, timestamp);
         edge->expiration_time = expiration_time;
 
         // Add the edge to the adjacency list if it doesn't exist
-        if (adjacency_list.find(from) == adjacency_list.end()) {
+        if (adjacency_list[from].empty()) {
+            vertex_num++;
             adjacency_list[from] = vector<pair<unsigned int, sg_edge *> >();
         }
         adjacency_list[from].emplace_back(to, edge);
@@ -186,7 +190,7 @@ public:
     bool remove_edge(unsigned int from, unsigned int to, int label) { // delete an edge from the snapshot graph
 
         // Check if the vertex exists in the adjacency list
-        if (adjacency_list.find(from) == adjacency_list.end()) {
+        if (adjacency_list[from].empty()) {
             return false; // Edge doesn't exist
         }
 
@@ -222,7 +226,7 @@ public:
 
     std::vector<edge_info> get_all_suc(unsigned int s) {
         std::vector<edge_info> sucs;
-        if (adjacency_list.find(s) == adjacency_list.end()) {
+        if (adjacency_list[s].empty()) {
             return sucs; // No outgoing edges for vertex s
         }
 
@@ -233,7 +237,7 @@ public:
     }
 
     void get_src_degree(unsigned int s, map<unsigned int, unsigned int> &degree_map) {
-        if (adjacency_list.find(s) == adjacency_list.end()) {
+        if (adjacency_list[s].empty()) {
             return; // No outgoing edges for vertex s
         }
 
@@ -268,5 +272,7 @@ public:
 
         // Update tail if necessary
         if (target == time_list_tail) time_list_tail = to_insert;
+
+        to_insert->edge_pt->expiration_time = target->edge_pt->expiration_time;
     }
 };
