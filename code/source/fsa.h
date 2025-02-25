@@ -6,6 +6,7 @@
 #define FSA_H
 
 #include <iostream>
+#include <map>
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
@@ -53,10 +54,10 @@ public:
         return -1; // No valid transition
     }
     
-    std::vector<std::pair<int, int>> getAllSuccessors(const int state) {
-        std::vector<std::pair<int, int>> successors;
+    std::map<int, int> getAllSuccessors(const int state) {
+        std::map<int, int> successors;
         for (const auto& transition : transitions[state]) {
-            successors.emplace_back(transition.label, transition.toState);
+            successors[transition.label] = transition.toState;
         }
         return successors;
     }

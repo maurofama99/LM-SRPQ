@@ -236,14 +236,12 @@ public:
         return sucs;
     }
 
-    void get_src_degree(unsigned int s, map<unsigned int, unsigned int> &degree_map) {
-        if (adjacency_list[s].empty()) {
-            return; // No outgoing edges for vertex s
-        }
-
+    map<unsigned int, unsigned int> get_src_degree(unsigned int s) {
+        map<unsigned int, unsigned int> degree_map;
         for (const auto &[_, edge]: adjacency_list[s]) {
             degree_map[edge->label]++;
         }
+        return degree_map;
     }
 
     double get_zscore(unsigned int vertex) {
