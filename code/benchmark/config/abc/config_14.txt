@@ -1,8 +1,8 @@
 algorithm=3
 input_data_path=code/dataset/so/so-stream_debug_5kk.txt
 output_base_folder=code/benchmark/results/
-size=30000
-slide=15000
+size=60000
+slide=30000
 query_type=4
 labels=1,2,3
 zscore=0.65
