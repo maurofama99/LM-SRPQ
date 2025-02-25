@@ -45,7 +45,7 @@ class sg_edge {
 public:
     int label;
     unsigned int timestamp;
-    unsigned int expiration_time{};
+    unsigned int expiration_time;
     timed_edge *time_pos;
     unsigned int s, d;
     int id;
@@ -67,7 +67,6 @@ public:
 
     int edge_num=0; // number of edges in the window
     int vertex_num=0; // number of vertices in the window
-    double overall_density{}; // overall density of the graph
     timed_edge *time_list_head; // head of the time sequence list;
     timed_edge *time_list_tail; // tail of the time sequence list
 
@@ -78,7 +77,6 @@ public:
     double zscore_threshold;
     int slide_threshold = 10;
     int saved_edges = 0;
-    int slide{};
 
     explicit streaming_graph(const double zscore) {
         zscore_threshold = zscore;

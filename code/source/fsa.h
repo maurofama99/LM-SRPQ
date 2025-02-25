@@ -19,22 +19,22 @@ public:
         int label;
     };
     
-    std::unordered_map<int, std::vector<Transition>> transitions;
+    std::unordered_map<int, std::vector<Transition> > transitions;
     int initialState;
     std::unordered_set<int> finalStates;
     
     FiniteStateAutomaton() : initialState(0) {}
     
     void addTransition(int fromState, int toState, int label) {
-        transitions[fromState].push_back({fromState, toState, label});
+        transitions[fromState].push_back((Transition){fromState, toState, label});
     }
     
     void addFinalState(int state) {
         finalStates.insert(state);
     }
     
-    [[nodiscard]] std::vector<std::pair<int, int>> getStatePairsWithTransition(int label) const {
-        std::vector<std::pair<int, int>> statePairs;
+    [[nodiscard]] std::vector<std::pair<int, int> > getStatePairsWithTransition(int label) const {
+        std::vector<std::pair<int, int> > statePairs;
         for (const auto& pair : transitions) {
             for (const auto& transition : pair.second) {
                 if (transition.label == label) {

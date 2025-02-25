@@ -44,8 +44,8 @@ struct TreeHash {
 struct pair_hash {
     template <class T1, class T2>
     std::size_t operator()(const std::pair<T1, T2>& p) const {
-        auto hash1 = std::hash<T1>{}(p.first);
-        auto hash2 = std::hash<T2>{}(p.second);
+        auto hash1 = std::hash<T1>()(p.first);
+        auto hash2 = std::hash<T2>()(p.second);
         return hash1 ^ (hash2 << 1); // Combine the two hash values
     }
 };
@@ -53,9 +53,9 @@ struct pair_hash {
 class Forest {
 public:
     std::unordered_map<unsigned int, Tree> trees; // Currently active trees, Key: root vertex, Value: Tree
-    std::unordered_map<unsigned int, std::unordered_set<Tree, TreeHash>> vertex_tree_map; // Maps vertex to tree to which it belongs to
+    std::unordered_map<unsigned int, std::unordered_set<Tree, TreeHash> > vertex_tree_map; // Maps vertex to tree to which it belongs to
     // key: pair ts open, ts close, value: a pair of trees (first) and vertex_tree_map (second)
-    std::unordered_map<std::pair<unsigned, unsigned>, std::pair<std::unordered_map<unsigned int, Tree>, std::unordered_map<unsigned int, std::unordered_set<Tree, TreeHash>>>, pair_hash> backup_map;
+    std::unordered_map<std::pair<unsigned, unsigned>, std::pair<std::unordered_map<unsigned int, Tree>, std::unordered_map<unsigned int, std::unordered_set<Tree, TreeHash> > >, pair_hash> backup_map;
 
     ~Forest() {
         for (auto&[fst, snd] : trees) {
@@ -69,7 +69,7 @@ public:
     void addTree(int rootId, unsigned int rootVertex, int rootState) {
         if (trees.find(rootVertex) == trees.end()) {
             auto rootNode = new Node(rootId, rootVertex, rootState, nullptr);
-            trees[rootVertex] = {rootVertex, rootNode, false};
+            trees[rootVertex] = (Tree) {rootVertex, rootNode, false};
             vertex_tree_map[rootVertex].insert(trees[rootVertex]);
         }
     }
@@ -121,7 +121,7 @@ public:
 
         if (vertex_tree_map.count(vertex)) {
             for (auto tree: vertex_tree_map.find(vertex)->second) {
-                if (searchNodeNoState(tree.rootNode, vertex)) result.emplace(tree.rootNode->vertex);
+                if (searchNodeNoState(tree.rootNode, vertex)) result.insert(tree.rootNode->vertex);
             }
         }
         return result;
@@ -173,7 +173,7 @@ public:
 
     void deepCopyTreesAndVertexTreeMap(unsigned key1, unsigned key2) {
         std::unordered_map<unsigned int, Tree> trees_copy;
-        std::unordered_map<unsigned int, std::unordered_set<Tree, TreeHash>> vertex_tree_map_copy;
+        std::unordered_map<unsigned int, std::unordered_set<Tree, TreeHash> > vertex_tree_map_copy;
 
         // Deep copy trees
         for (const auto& [rootVertex, tree] : trees) {
@@ -191,8 +191,8 @@ public:
         }
 
         // Store the copies in the backup_map
-        backup_map[{key1, key2}] = {trees_copy, vertex_tree_map_copy};
-    }
+        backup_map[std::make_pair(key1, key2)] = std::make_pair(trees_copy, vertex_tree_map_copy);
+        }
 
     void printTree(Node *node, int depth = 0) const {
         if (!node) return;

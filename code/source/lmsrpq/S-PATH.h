@@ -9,8 +9,8 @@
 #include<stack>
 #include<algorithm>
 #include "forest_struct.h"
-#include "fsa.h"
-#include "streaming_graph.h"
+#include "../fsa.h"
+#include "../streaming_graph.h"
 #define merge_long_long(s, d) (((unsigned long long)s<<32)|d)
 using namespace std;
 
@@ -288,7 +288,7 @@ public:
 		{
 			unsigned int dst = deleted_edge.d;
 			unsigned int label = deleted_edge.label; // for each expired edge, find its dst node. All the expired nodes in the spanning forest must be in a subtree of such dst node.
-			vector<pair<int, int>> vec = aut->getStatePairsWithTransition(label); // get possible states of the dst node.
+			vector<pair<int, int> > vec = aut->getStatePairsWithTransition(label); // get possible states of the dst node.
 			for (auto & j : vec) {
 				int dst_state = j.second;
 				if (dst_state == -1)
@@ -415,7 +415,7 @@ public:
 		fout << "total memory besides result set: " << (tree_memory + tree_node_memory) << endl;
 
 
-		return {result_pairs.size(), tree_node_num};
+		return std::make_pair(result_pairs.size(), tree_node_num);
 	}
 
 	void print_tree(unsigned int ID, unsigned int state)

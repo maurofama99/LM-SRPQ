@@ -57,7 +57,7 @@ public:
     Forest& forest;
     streaming_graph& sg;
 
-    unordered_map<unsigned int,std::unordered_set<result, resultHash>> result; // Maps source vertex to destination vertex and timestamp of path creation
+    unordered_map<unsigned int,std::unordered_set<result, resultHash> > result; // Maps source vertex to destination vertex and timestamp of path creation
     int results_count = 0;
 
     SPathHandler(FiniteStateAutomaton& fsa, Forest& forest, streaming_graph& sg)
@@ -93,8 +93,8 @@ public:
             for (auto tree : forest.findTreesWithNode(edge->s, sb_sd.first)) {   // for all Trees that contain ⟨vb,sb⟩
                 std::unordered_set<visited_pair, visitedpairHash> visited; // set of visited pairs (vertex, state)
                 queue <tree_expansion> Q; // (⟨vb,sb⟩, <vd,sd>, edge_id)
-                Q.push(tree_expansion{edge->s, sb_sd.first, edge->d, sb_sd.second, edge->id}); // push (⟨vb,sb⟩, <vd,sd>, edge_id) into Q
-                visited.insert({edge->s, sb_sd.first});
+                Q.push((tree_expansion){edge->s, sb_sd.first, edge->d, sb_sd.second, edge->id}); // push (⟨vb,sb⟩, <vd,sd>, edge_id) into Q
+                visited.insert((visited_pair){edge->s, sb_sd.first});
                 while (!Q.empty()) {
                     auto element = Q.front();
                     Q.pop(); // (⟨vi,si⟩, <vj,sj>, edge_id)
@@ -109,7 +109,7 @@ public:
                     if (fsa.isFinalState(element.sd)) {
                         // update result set
                         // check if in the result set we already have a path from root to element.vd
-                        if (result[tree.rootVertex].insert({element.vd, edge->timestamp}).second) {
+                        if (result[tree.rootVertex].insert((struct result){element.vd, edge->timestamp}).second) {
                             results_count++;
                         }
                     }
@@ -123,9 +123,9 @@ public:
                     for (auto successors: sg.get_all_suc(element.vd)) {
                         // if the transition exits in the automaton from sj to sq
                         if (auto sq = fsa.getNextState(element.sd, successors.label); sq != -1) {
-                            if (visited.count({successors.d, sq}) <= 0) { // if <vq,sq> is not in visited
-                                Q.push(tree_expansion{element.vd, element.sd, successors.d, sq, successors.id});
-                                visited.insert({element.vd, element.sd});
+                            if (visited.count((visited_pair){successors.d, sq}) <= 0) { // if <vq,sq> is not in visited
+                                Q.push((tree_expansion){element.vd, element.sd, successors.d, sq, successors.id});
+                                visited.insert((visited_pair){element.vd, element.sd});
                             }
                         }
                     }

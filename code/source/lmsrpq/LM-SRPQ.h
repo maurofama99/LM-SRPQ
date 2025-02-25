@@ -7,7 +7,7 @@
 #include <queue>
 #include <chrono>
 #include "forest_struct.h"
-#include "fsa.h"
+#include "../fsa.h"
 #define merge_long_long(s, d) (((unsigned long long)s<<32)|d)
 using namespace std;
 
@@ -564,14 +564,14 @@ public:
 						}
 					}
 				}
-				for (unordered_map<unsigned long long, vector<pair<unsigned int, unsigned int> >>::iterator iter = lm_results.begin(); iter != lm_results.end(); iter++)
+				for (auto iter = lm_results.begin(); iter != lm_results.end(); iter++)
 				{
 					unsigned int lm_ID = (iter->first >> 32);
 					unsigned int lm_state = (iter->first & 0xFFFFFFFFF);
-					map<unsigned int, tree_info_index*>::iterator index_iter = v2t_index.find(lm_state); // find the normal trees containing other landmarks we find in backtrack and update them.
+					auto index_iter = v2t_index.find(lm_state); // find the normal trees containing other landmarks we find in backtrack and update them.
 					if (index_iter != v2t_index.end())
 					{
-						unordered_map<unsigned int, tree_info*>::iterator tree_iter = index_iter->second->tree_index.find(lm_ID);
+						auto tree_iter = index_iter->second->tree_index.find(lm_ID);
 						if (tree_iter != index_iter->second->tree_index.end()) {
 							tree_info* tmp = tree_iter->second;
 							while (tmp) {
@@ -613,7 +613,7 @@ public:
 					}
 				}
 
-				for (unordered_map<unsigned long long, vector<pair<unsigned int, unsigned int> >>::iterator iter = lm_results.begin(); iter != lm_results.end(); iter++) 
+				for (unordered_map<unsigned long long, vector<pair<unsigned int, unsigned int> > >::iterator iter = lm_results.begin(); iter != lm_results.end(); iter++)
 				{
 					unsigned int lm_ID = (iter->first >> 32);
 					unsigned int lm_state = (iter->first & 0xFFFFFFFFF);
@@ -677,7 +677,7 @@ public:
 					}
 					else
 						new_node = add_node(tree_pt, v, state, tree_pt->root->node_ID, expand_tree_node, time, exp, child->edge_timestamp);
-					q.emplace(new_node, child);
+					q.push(make_pair(new_node, child));
 				}
 				else
 				{
@@ -1737,7 +1737,7 @@ public:
 		{
 			unsigned int dst = deleted_edge.d;
 			unsigned int label = deleted_edge.label;
-			vector<pair<int, int>> vec = aut->getStatePairsWithTransition(label); // dst node of the expired edge may be root of expired subtrees, get all the possible dst states/
+			vector<pair<int, int> > vec = aut->getStatePairsWithTransition(label); // dst node of the expired edge may be root of expired subtrees, get all the possible dst states/
 			for (auto & j : vec) {
 				int dst_state = j.second;
 				if (dst_state == -1)

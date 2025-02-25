@@ -750,7 +750,7 @@ public:
 		return false;
 	}
 
-	void get_successor(unsigned int src, unsigned int src_state, vector < pair<unsigned long long, unsigned int>>& suc)
+	void get_successor(unsigned int src, unsigned int src_state, vector < pair<unsigned long long, unsigned int> >& suc)
 	{
 		unsigned long long src_info = merge_long_long(src, src_state);
 		if (g.find(src_info) != g.end())
@@ -764,7 +764,7 @@ public:
 		}
 	}
 
-	void get_precursor(unsigned int dst, unsigned int dst_state, vector < pair<unsigned long long, unsigned int>>& pre)
+	void get_precursor(unsigned int dst, unsigned int dst_state, vector < pair<unsigned long long, unsigned int> >& pre)
 	{
 		unsigned long long dst_info = merge_long_long(dst, dst_state);
 		if (g.find(dst_info) != g.end())

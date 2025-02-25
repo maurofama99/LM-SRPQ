@@ -5,28 +5,28 @@
 #include <fstream>
 #include <sstream>
 
-#include "fsa.h"
-#include "rpq_forest.h"
-#include "streaming_graph.h"
-#include "s_path.h"
-#include "lmsrpq/LM-SRPQ.h"
-#include "lmsrpq/S-PATH.h"
+#include "source/fsa.h"
+#include "source/rpq_forest.h"
+#include "source/streaming_graph.h"
+#include "source/s_path.h"
+#include "source/lmsrpq/LM-SRPQ.h"
+#include "source/lmsrpq/S-PATH.h"
 
 using namespace std;
 
-struct Config {
-    int algorithm{};
+typedef struct Config {
+    int algorithm;
     std::string input_data_path;
     std::string output_base_folder;
-    int size{};
-    int slide{};
-    int query_type{};
+    int size;
+    int slide;
+    int query_type;
     std::vector<int> labels;
-    double zscore{};
-};
+    double zscore;
+} config;
 
-Config readConfig(const std::string& filename) {
-    Config config;
+config readConfig(const std::string& filename) {
+    config config;
     std::ifstream file(filename);
     std::string line;
 
@@ -86,7 +86,7 @@ vector<int> setup_automaton(int query_type, FiniteStateAutomaton *aut, const vec
 
 int main(int argc, char *argv[]) {
     string config_path = argv[1];
-    Config config = readConfig(config_path);
+    config config = readConfig(config_path.c_str());
 
     int algorithm = config.algorithm;
     ifstream fin(config.input_data_path.c_str());
@@ -324,7 +324,7 @@ int main(int argc, char *argv[]) {
     std::string output_file_csv = config.output_base_folder + "output_" + std::to_string(algorithm) + "_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + retention + ".csv";
 
     // Open file for writing
-    std::ofstream outFile(output_file);
+    std::ofstream outFile(output_file.c_str());
     if (!outFile) {
         std::cerr << "Error opening file for writing: " << output_file << std::endl;
 
