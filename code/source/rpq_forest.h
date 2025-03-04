@@ -1,7 +1,3 @@
-//
-// Created by Mauro Famà on 12/02/2025.
-//
-
 #ifndef RPQ_FOREST_H
 #define RPQ_FOREST_H
 
@@ -171,7 +167,7 @@ public:
         }
     }
 
-    void deepCopyTreesAndVertexTreeMap(unsigned key1, unsigned key2) {
+    void deepCopyTreesAndVertexTreeMap(unsigned ts_open, unsigned ts_close) {
         std::unordered_map<unsigned int, Tree> trees_copy;
         std::unordered_map<unsigned int, std::unordered_set<Tree, TreeHash> > vertex_tree_map_copy;
 
@@ -191,13 +187,20 @@ public:
         }
 
         // Store the copies in the backup_map
-        backup_map[std::make_pair(key1, key2)] = std::make_pair(trees_copy, vertex_tree_map_copy);
+        backup_map[std::make_pair(ts_open, ts_close)] = std::make_pair(trees_copy, vertex_tree_map_copy);
+    }
+
+    void deleteExpiredForest(unsigned ts_open, unsigned ts_close) {
+        auto it = backup_map.find(std::make_pair(ts_open, ts_close));
+        if (it != backup_map.end()) {
+            backup_map.erase(it);
         }
+    }
 
     void printTree(Node *node, int depth = 0) const {
         if (!node) return;
         for (int i = 0; i < depth; ++i) std::cout << "  ";
-        std::cout << "Node(id: " << node->id << ", vertex: " << node->vertex << ", state: " << node->state << ")\n";
+        std::cout << "Node (id: " << node->id << ", vertex: " << node->vertex << ", state: " << node->state << ")\n";
         for (Node *child: node->children) {
             printTree(child, depth + 1);
         }
@@ -241,7 +244,7 @@ private:
         std::queue<Node*> node_queue;
         node_queue.push(root);
 
-        Node* root_copy = new Node(root->id, root->vertex, root->state, nullptr);
+        auto root_copy = new Node(root->id, root->vertex, root->state, nullptr);
         node_map[root] = root_copy;
 
         while (!node_queue.empty()) {
@@ -252,7 +255,7 @@ private:
 
             for (Node* child : current->children) {
                 if (node_map.find(child) == node_map.end()) {
-                    Node* child_copy = new Node(child->id, child->vertex, child->state, current_copy);
+                    auto child_copy = new Node(child->id, child->vertex, child->state, current_copy);
                     node_map[child] = child_copy;
                     node_queue.push(child);
                 }

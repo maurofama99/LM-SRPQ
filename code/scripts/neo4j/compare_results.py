@@ -58,7 +58,7 @@ def compare_results(file1, file2):
 
 # Example usage
 if __name__ == "__main__":
-    file1 = "stream_results_my.csv"  # Stream
+    file1 = "/Users/maurofama/Documents/phd/frames4pgs/CbAW4DGSP/code/output_3_4_60000_30000_2.950000_ooo.csv"  # Stream
     file2 = "db-results_500k.csv"  # DB
     compare_results(file1, file2)
 

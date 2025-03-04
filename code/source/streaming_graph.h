@@ -60,6 +60,14 @@ public:
     }
 };
 
+struct pair_hash_aj {
+    template <class T1, class T2>
+    std::size_t operator()(const std::pair<T1, T2>& p) const {
+        auto hash1 = std::hash<T1>()(p.first);
+        auto hash2 = std::hash<T2>()(p.second);
+        return hash1 ^ (hash2 << 1); // Combine the two hash values
+    }
+};
 
 class streaming_graph {
 public:
@@ -69,6 +77,8 @@ public:
     int vertex_num=0; // number of vertices in the window
     timed_edge *time_list_head; // head of the time sequence list;
     timed_edge *time_list_tail; // tail of the time sequence list
+    // key: pair ts open, ts close, value: adjacency list
+    std::unordered_map<std::pair<unsigned, unsigned>, unordered_map<unsigned int, vector<pair<unsigned int, sg_edge *> > >, pair_hash_aj > backup_aj;
 
     // Z-score computation
     double mean = 0;
@@ -112,6 +122,36 @@ public:
             time_list_tail = cur;
         }
     }
+
+    void add_timed_edge_inorder(timed_edge *cur) // append an edge to the time sequence list
+{
+        if (!time_list_head) {
+            time_list_head = cur;
+            time_list_tail = cur;
+        } else {
+            timed_edge *temp = time_list_head;
+            while (temp && temp->edge_pt->timestamp < cur->edge_pt->timestamp) {
+                temp = temp->next;
+            }
+            if (!temp) {
+                // Insert at the end
+                time_list_tail->next = cur;
+                cur->prev = time_list_tail;
+                time_list_tail = cur;
+            } else if (temp == time_list_head) {
+                // Insert at the beginning
+                cur->next = time_list_head;
+                time_list_head->prev = cur;
+                time_list_head = cur;
+            } else {
+                // Insert in the middle
+                cur->next = temp;
+                cur->prev = temp->prev;
+                temp->prev->next = cur;
+                temp->prev = cur;
+            }
+        }
+}
 
     void delete_timed_edge(timed_edge *cur) // delete an edge from the time sequence list
     {
@@ -270,5 +310,27 @@ public:
         if (target == time_list_tail) time_list_tail = to_insert;
 
         to_insert->edge_pt->expiration_time = target->edge_pt->expiration_time;
+        to_insert->edge_pt->timestamp = target->edge_pt->timestamp;
+    }
+
+    void deep_copy_adjacency_list(unsigned int ts_open, unsigned int ts_close) {
+        unordered_map<unsigned int, vector<pair<unsigned int, sg_edge *> > > copy;
+        for (const auto &[from, edges]: adjacency_list) {
+            vector<pair<unsigned int, sg_edge *> > edges_copy;
+            for (const auto &[to, edge]: edges) {
+                auto *edge_copy = new sg_edge(*edge);
+                edges_copy.emplace_back(to, edge_copy);
+            }
+            copy[from] = edges_copy;
+        }
+        auto key = std::make_pair(ts_open, ts_close);
+        backup_aj[key] = copy;
+    }
+
+    void delete_expired_adj(unsigned ts_open, unsigned ts_close) {
+        auto it = backup_aj.find(std::make_pair(ts_open, ts_close));
+        if (it != backup_aj.end()) {
+            backup_aj.erase(it);
+        }
     }
 };

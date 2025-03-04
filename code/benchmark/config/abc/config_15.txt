@@ -1,5 +1,5 @@
 algorithm=3
-input_data_path=code/dataset/so/so-stream_debug_5kk.txt
+input_data_path=code/dataset/so/so-stream_debug_15kk.txt
 output_base_folder=code/benchmark/results/
 size=60000
 slide=20000

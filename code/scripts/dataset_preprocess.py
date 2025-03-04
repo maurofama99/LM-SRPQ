@@ -43,10 +43,10 @@ def main():
     config_file = "config_so.txt"
     # File di input e output
     input_file = "../dataset/so/so-stream.txt"
-    output_file = "../dataset/so/so-stream_debug_15kk.txt"
+    output_file = "../dataset/so/so-stream_labelled.txt"
 
     # Limite sul numero di righe del file di output (-1 per nessun limite)
-    max_lines = 15000000  # Cambia questo valore come necessario
+    max_lines = 100000000000  # Cambia questo valore come necessario
 
     # Leggi la mappa delle etichette e il valore di default
     label_map, default_value = parse_label_map(config_file)
