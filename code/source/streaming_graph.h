@@ -26,12 +26,12 @@ struct timed_edge
 
 struct edge_info // the structure as query result, include all the information of an edge;
 {
-    unsigned int s, d;
-    int label;
-    unsigned int timestamp;
-    unsigned int expiration_time;
-    int id;
-    edge_info(unsigned int src,  unsigned int dst, unsigned int time, int label_, unsigned int expiration_time_, int id_) {
+    long long s, d;
+    long long label;
+    long long timestamp;
+    long long expiration_time;
+    long long id;
+    edge_info(long long src,  long long dst, long long time, long long label_, long long expiration_time_, long long id_) {
         s = src;
         d = dst;
         timestamp = time;
@@ -43,14 +43,14 @@ struct edge_info // the structure as query result, include all the information o
 
 class sg_edge {
 public:
-    int label;
-    unsigned int timestamp;
-    unsigned int expiration_time;
+    long long label;
+    long long timestamp;
+    long long expiration_time;
     timed_edge *time_pos;
-    unsigned int s, d;
-    int id;
+    long long s, d;
+    long long id;
 
-    sg_edge(const int id_, const unsigned int src, const unsigned int dst, const int label_, const unsigned int time) {
+    sg_edge(const long long id_, const long long src, const long long dst, const long long label_, const long long time) {
         id = id_;
         s = src;
         d = dst;
@@ -71,22 +71,22 @@ struct pair_hash_aj {
 
 class streaming_graph {
 public:
-    unordered_map<unsigned int, vector<pair<unsigned int, sg_edge *> > > adjacency_list;
+    unordered_map<long long, vector<pair<long long, sg_edge *> > > adjacency_list;
 
-    int edge_num=0; // number of edges in the window
-    int vertex_num=0; // number of vertices in the window
+    long long edge_num=0; // number of edges in the window
+    long long vertex_num=0; // number of vertices in the window
     timed_edge *time_list_head; // head of the time sequence list;
     timed_edge *time_list_tail; // tail of the time sequence list
     // key: pair ts open, ts close, value: adjacency list
-    std::unordered_map<std::pair<unsigned, unsigned>, unordered_map<unsigned int, vector<pair<unsigned int, sg_edge *> > >, pair_hash_aj > backup_aj;
+    std::unordered_map<std::pair<unsigned, unsigned>, unordered_map<long long, vector<pair<long long, sg_edge *> > >, pair_hash_aj > backup_aj;
 
     // Z-score computation
     double mean = 0;
     double m2 = 0;
-    unordered_map<unsigned int, int> density;
+    unordered_map<long long, long long> density;
     double zscore_threshold;
-    int slide_threshold = 10;
-    int saved_edges = 0;
+    long long slide_threshold = 10;
+    long long saved_edges = 0;
 
     explicit streaming_graph(const double zscore) {
         zscore_threshold = zscore;
@@ -176,7 +176,7 @@ public:
         delete cur;
     }
 
-    sg_edge * search_existing_edge(unsigned int from, unsigned int to, int label) {
+    sg_edge * search_existing_edge(long long from, long long to, long long label) {
 
         for (auto &[to_vertex, existing_edge]: adjacency_list[from]) {
             if (existing_edge->label == label && to_vertex == to) {
@@ -187,8 +187,8 @@ public:
         return nullptr;
     }
 
-    sg_edge* insert_edge(int edge_id, const unsigned int from,  unsigned int to, const int label, const unsigned int timestamp,
-                         const unsigned int expiration_time) {
+    sg_edge* insert_edge(long long edge_id, const long long from,  long long to, const long long label, const long long timestamp,
+                         const long long expiration_time) {
 
         // Check if the edge already exists in the adjacency list
         for (auto &[to_vertex, existing_edge]: adjacency_list[from]) {
@@ -205,7 +205,7 @@ public:
         // Add the edge to the adjacency list if it doesn't exist
         if (adjacency_list[from].empty()) {
             vertex_num++;
-            adjacency_list[from] = vector<pair<unsigned int, sg_edge *> >();
+            adjacency_list[from] = vector<pair<long long, sg_edge *> >();
         }
         adjacency_list[from].emplace_back(to, edge);
 
@@ -225,7 +225,7 @@ public:
         return edge;
     }
 
-    bool remove_edge(unsigned int from, unsigned int to, int label) { // delete an edge from the snapshot graph
+    bool remove_edge(long long from, long long to, long long label) { // delete an edge from the snapshot graph
 
         // Check if the vertex exists in the adjacency list
         if (adjacency_list[from].empty()) {
@@ -262,7 +262,7 @@ public:
         return false; // Edge not found
     }
 
-    std::vector<edge_info> get_all_suc(unsigned int s) {
+    std::vector<edge_info> get_all_suc(long long s) {
         std::vector<edge_info> sucs;
         if (adjacency_list[s].empty()) {
             return sucs; // No outgoing edges for vertex s
@@ -274,15 +274,15 @@ public:
         return sucs;
     }
 
-    map<unsigned int, unsigned int> get_src_degree(unsigned int s) {
-        map<unsigned int, unsigned int> degree_map;
+    map<long long, long long> get_src_degree(long long s) {
+        map<long long, long long> degree_map;
         for (const auto &[_, edge]: adjacency_list[s]) {
             degree_map[edge->label]++;
         }
         return degree_map;
     }
 
-    double get_zscore(unsigned int vertex) {
+    double get_zscore(long long vertex) {
         double variance = m2 / edge_num;
         double std_dev = sqrt(variance);
 
@@ -313,10 +313,10 @@ public:
         to_insert->edge_pt->timestamp = target->edge_pt->timestamp;
     }
 
-    void deep_copy_adjacency_list(unsigned int ts_open, unsigned int ts_close) {
-        unordered_map<unsigned int, vector<pair<unsigned int, sg_edge *> > > copy;
+    void deep_copy_adjacency_list(long long ts_open, long long ts_close) {
+        unordered_map<long long, vector<pair<long long, sg_edge *> > > copy;
         for (const auto &[from, edges]: adjacency_list) {
-            vector<pair<unsigned int, sg_edge *> > edges_copy;
+            vector<pair<long long, sg_edge *> > edges_copy;
             for (const auto &[to, edge]: edges) {
                 auto *edge_copy = new sg_edge(*edge);
                 edges_copy.emplace_back(to, edge_copy);

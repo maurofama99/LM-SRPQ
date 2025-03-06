@@ -8,16 +8,16 @@
 #include "streaming_graph.h"
 
 struct tree_expansion {
-    unsigned int vb;
-    int sb;
-    unsigned int vd;
-    int sd;
-    int edge_id;
+    long long vb;
+    long long sb;
+    long long vd;
+    long long sd;
+    long long edge_id;
 };
 
 struct visited_pair {
-    unsigned int vertex;
-    int state;
+    long long vertex;
+    long long state;
 
     bool operator==(const visited_pair &other) const {
         return vertex == other.vertex && state == other.state;
@@ -26,13 +26,13 @@ struct visited_pair {
 
 struct visitedpairHash {
     size_t operator()(const visited_pair &p) const {
-        return hash<unsigned int>()(p.vertex) ^ hash<int>()(p.state);
+        return hash<long long>()(p.vertex) ^ hash<long long>()(p.state);
     }
 };
 
 struct result {
-    unsigned int destination;
-    unsigned int timestamp;
+    long long destination;
+    long long timestamp;
 
     bool operator==(const result &other) const {
         return destination == other.destination;
@@ -41,8 +41,8 @@ struct result {
 
 struct resultHash {
     size_t operator()(const result &p) const {
-        return hash<unsigned int>()(p.destination);
-        //^ hash<unsigned int>()(p.timestamp);
+        return hash<long long>()(p.destination);
+        //^ hash<long long>()(p.timestamp);
     }
 };
 
@@ -52,9 +52,9 @@ public:
     Forest &forest;
     streaming_graph &sg;
 
-    unordered_map<unsigned int, std::unordered_set<result, resultHash> > result_set;
+    unordered_map<long long, std::unordered_set<result, resultHash> > result_set;
     // Maps source vertex to destination vertex and timestamp of path creation
-    int results_count = 0;
+    long long results_count = 0;
 
     SPathHandler(FiniteStateAutomaton &fsa, Forest &forest, streaming_graph &sg)
         : fsa(fsa), forest(forest), sg(sg) {
@@ -133,8 +133,8 @@ public:
     }
 
     void compute_missing_results(unsigned id, unsigned s, unsigned d, unsigned l, unsigned time, unsigned window_close,
-                                 vector<std::pair<unsigned int, unsigned int> > &windows, // windows to recover
-                                 unordered_map<int, vector<sg_edge *> > &windows_backup) {
+                                 vector<std::pair<long long, long long> > &windows, // windows to recover
+                                 unordered_map<long long, vector<sg_edge *> > &windows_backup) {
         if (windows.empty()) return;
 
         const auto edge = new sg_edge(id, s, d, time, window_close);

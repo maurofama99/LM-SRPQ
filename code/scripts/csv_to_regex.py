@@ -7,7 +7,7 @@ def convert_labels(input_file, output_file, label_map):
 
         for row in reader:
             source, destination, label, timestamp = row
-            label = label_map.get(int(label), label)  # Convert label using the map
+            label = label_map.get(long long(label), label)  # Convert label using the map
             writer.writerow([source, destination, label, timestamp])
 
 if __name__ == "__main__":

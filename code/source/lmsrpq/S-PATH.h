@@ -28,11 +28,11 @@ public:
     // pointer to the streaming graph .
 	FiniteStateAutomaton* aut; // pointer to the DFA of the regular expression.
 	unordered_map<unsigned long long, RPQ_tree*> forests; // map from product graph node to tree pointer
-	map<unsigned int, tree_info_index*> v2t_index; // reverse index that maps a graph vertex to the trees that contains it. The first layer maps state to tree_info_index, and the second layer maps vertex ID to list of trees contains this node
-	unordered_map<unsigned long long, unsigned int> result_pairs; // result set, maps from vertex paris to the largest timestamp of regular paths between them
+	map<long long, tree_info_index*> v2t_index; // reverse index that maps a graph vertex to the trees that contains it. The first layer maps state to tree_info_index, and the second layer maps vertex ID to list of trees contains this node
+	unordered_map<unsigned long long, long long> result_pairs; // result set, maps from vertex paris to the largest timestamp of regular paths between them
 
-	int distinct_results = 0;
-	int expand_call = 0;
+	long long distinct_results = 0;
+	long long expand_call = 0;
 	double peek_memory = 0;
 	double memory_current_avg; // La media corrente
 	size_t memory_count;
@@ -48,7 +48,7 @@ public:
 		for (it = forests.begin(); it != forests.end(); it++)
 			delete it->second;
 		forests.clear();
-		map<unsigned int, tree_info_index*>::iterator it2;
+		map<long long, tree_info_index*>::iterator it2;
 		for (it2 = v2t_index.begin(); it2 != v2t_index.end(); it2++)
 			delete it2->second;
 		v2t_index.clear();
@@ -61,19 +61,19 @@ public:
         ofstream fout(file_name);
         for (auto & iter : result_pairs)
         {
-            unsigned int src = iter.first >> 32;
-            unsigned int dst = iter.first & 0xFFFFFFFF;
+            long long src = iter.first >> 32;
+            long long dst = iter.first & 0xFFFFFFFF;
             fout << src << "," << dst << "," << iter.second << endl;
         }
         fout.close();
     }
 
-	void update_result(unordered_map<unsigned int, unsigned int>& updated_nodes, unsigned int root_ID) // update the result set, first of a KV in the um is a vertex ID v, and second is a timestamp t, update timestamp of (root v) pair to t
+	void update_result(unordered_map<long long, long long>& updated_nodes, long long root_ID) // update the result set, first of a KV in the um is a vertex ID v, and second is a timestamp t, update timestamp of (root v) pair to t
 	{
 		for (auto & updated_node : updated_nodes)
 		{
-			unsigned int dst = updated_node.first;
-			unsigned int time = updated_node.second;
+			long long dst = updated_node.first;
+			long long time = updated_node.second;
 			if (dst == root_ID) // self-join is omitted
 				continue;
 			unsigned long long result_pair = static_cast<unsigned long long>(root_ID) << 32 | dst;
@@ -88,7 +88,7 @@ public:
 		}
 	}
 
-	void add_index(RPQ_tree* tree_pt, unsigned int v, unsigned int state, unsigned int root_ID) // modify the reverse index to record the presence of a node in a tree. 
+	void add_index(RPQ_tree* tree_pt, long long v, long long state, long long root_ID) // modify the reverse index to record the presence of a node in a tree.
 	{
 		auto iter = v2t_index.find(state);
 		if (iter == v2t_index.end())
@@ -97,14 +97,14 @@ public:
 	}
 
 	// Addition of tree node for S-PATH
-	tree_node* add_node(RPQ_tree* tree_pt, unsigned int v, unsigned int state, unsigned int root_ID, tree_node* parent, unsigned int timestamp, unsigned int edge_time, unsigned int edge_exp) // add  a node to a spanning tree, given all the necessary information.
+	tree_node* add_node(RPQ_tree* tree_pt, long long v, long long state, long long root_ID, tree_node* parent, long long timestamp, long long edge_time, long long edge_exp) // add  a node to a spanning tree, given all the necessary information.
 	{
 		add_index(tree_pt, v, state, root_ID);
 		tree_node* tmp = tree_pt->add_node(v, state, parent, timestamp, edge_time, edge_exp);
 		return tmp;
 	}
 
-	void delete_index(unsigned int v, unsigned int state, unsigned int root) // modify the reverse index when a node is not in a spanning tree any more. 
+	void delete_index(long long v, long long state, long long root) // modify the reverse index when a node is not in a spanning tree any more.
 	{
 		auto iter = v2t_index.find(state);
 		if (iter != v2t_index.end())
@@ -117,8 +117,8 @@ public:
 	void expand(tree_node* expand_node, RPQ_tree* tree_pt) // function used to expand a spanning tree with a BFS manner when a new node is added into a spanning tree. expand node is the new node
 	{
 		expand_call++;
-		unsigned int root_ID = tree_pt->root->node_ID;
-		unordered_map<unsigned int, unsigned int> updated_results;
+		long long root_ID = tree_pt->root->node_ID;
+		unordered_map<long long, long long> updated_results;
 		priority_queue<tree_node*, vector<tree_node*>, time_compare> q;
 		q.push(expand_node);
 		while (!q.empty())
@@ -137,12 +137,12 @@ public:
 			vector<edge_info> vec = g->get_all_suc(tmp->node_ID); // get all the successor edges in the snapshot graph, and check each of them to find the successor nodes in the product graph.
 			for (auto & i : vec)
 			{
-				unsigned int successor = i.d;
-				unsigned int edge_label = i.label;
-				int dst_state = aut->getNextState(tmp->state, edge_label);
+				long long successor = i.d;
+				long long edge_label = i.label;
+				long long dst_state = aut->getNextState(tmp->state, edge_label);
 				if (dst_state == -1)
 					continue;
-				unsigned int time = min(tmp->timestamp, i.timestamp);
+				long long time = min(tmp->timestamp, i.timestamp);
 				if (tree_pt->node_map.find(dst_state) == tree_pt->node_map.end() || tree_pt->node_map[dst_state]->index.find(successor) == tree_pt->node_map[dst_state]->index.end())// If this node does not exit before, we add this node.
 					// todo added exp
 					q.push(add_node(tree_pt, successor, dst_state, tree_pt->root->node_ID, tmp, time, i.timestamp, i.expiration_time));
@@ -163,7 +163,7 @@ public:
 		updated_results.clear();
 	}
 
-	void insert_per_tree(unsigned int s, unsigned int d, unsigned int label, int timestamp, unsigned int exp, unsigned int src_state, unsigned int dst_state,
+	void insert_per_tree(long long s, long long d, long long label, long long timestamp, long long exp, long long src_state, long long dst_state,
 		RPQ_tree* tree_pt) // processing a new product graph edge from (s, src_state) to (d, dst_state) in a spanning tree tree_pt; 
 	{
 		if (tree_pt->node_map.find(src_state) != tree_pt->node_map.end())
@@ -172,7 +172,7 @@ public:
 			if (tmp_index->index.find(s) != tmp_index->index.end()) // find the src node
 			{
 				tree_node* src_pt = tmp_index->index[s];
-				unsigned int time = min(src_pt->timestamp, timestamp);
+				long long time = min(src_pt->timestamp, timestamp);
 				if (tree_pt->node_map.find(dst_state) == tree_pt->node_map.end() || tree_pt->node_map[dst_state]->index.find(d) == tree_pt->node_map[dst_state]->index.end()) { // if the dst node does not exit
 					// todo added exp
 					tree_node* dst_pt = add_node(tree_pt, d, dst_state, tree_pt->root->node_ID, src_pt, min(src_pt->timestamp, timestamp), timestamp, exp);
@@ -194,7 +194,7 @@ public:
 		}
 	}
 
-	sg_edge * insert_edge_spath(unsigned int id, unsigned int s, unsigned int d, int label, int timestamp, int exp) //  a new snapshot graph edge (s, d) is inserted, update the spanning forest accordingly.
+	sg_edge * insert_edge_spath(long long id, long long s, long long d, long long label, long long timestamp, long long exp) //  a new snapshot graph edge (s, d) is inserted, update the spanning forest accordingly.
 	{
 
 		sg_edge* new_sg_edge = g->insert_edge(id, s, d, label, timestamp, exp); // update snapshot graph
@@ -206,10 +206,10 @@ public:
 			new_tree->root = add_node(new_tree, s, 0, s, nullptr, MAX_INT, MAX_INT, exp);
 			forests[merge_long_long(s, 0)] = new_tree;
 		}
-		vector<pair<int, int> >vec = aut->getStatePairsWithTransition(label);// find all the state pairs where the src state can translate to the dst state when accepting this label
+		vector<pair<long long, long long> >vec = aut->getStatePairsWithTransition(label);// find all the state pairs where the src state can translate to the dst state when accepting this label
 		for (auto & i : vec) {
-			unsigned int src_state = i.first;
-			unsigned int dst_state = i.second;
+			long long src_state = i.first;
+			long long dst_state = i.second;
 			auto index_iter2 = v2t_index.find(src_state);
 			if (index_iter2 != v2t_index.end())
 			{
@@ -229,7 +229,7 @@ public:
 		return new_sg_edge;
 	}
 
-	void results_update(int time) // given the threshold of expiration, delete all the expired result pairs.
+	void results_update(long long time) // given the threshold of expiration, delete all the expired result pairs.
 	{
 		if (time <= 0)
 			return;
@@ -262,7 +262,7 @@ public:
 	}
 
 
-	void expire_per_tree(unsigned int v, unsigned int state, RPQ_tree* tree_pt, unsigned int current_time) // given a produce graph node (v, state) which can be possibly an expired node, can try to delete its subtree.
+	void expire_per_tree(long long v, long long state, RPQ_tree* tree_pt, long long current_time) // given a produce graph node (v, state) which can be possibly an expired node, can try to delete its subtree.
 	{
 		if (tree_pt->node_map.find(state) != tree_pt->node_map.end())
 		{
@@ -275,9 +275,9 @@ public:
 		}
 	}
 
-	void expire(int current_time, const vector<edge_info>& deleted_edges) // given current time, delete the expired tree nodes and results.
+	void expire(long long current_time, const vector<edge_info>& deleted_edges) // given current time, delete the expired tree nodes and results.
 	{
-		// int expire_time = current_time - g->window_size; // compute the threshold of expiration.
+		// long long expire_time = current_time - g->window_size; // compute the threshold of expiration.
 		// results_update(frontier); // delete expired results
 		// g->expire(current_time, deleted_edges); // delete expired graph edges.
 
@@ -286,11 +286,11 @@ public:
 		unordered_set<unsigned long long> visited; 
 		for (auto & deleted_edge : deleted_edges)
 		{
-			unsigned int dst = deleted_edge.d;
-			unsigned int label = deleted_edge.label; // for each expired edge, find its dst node. All the expired nodes in the spanning forest must be in a subtree of such dst node.
-			vector<pair<int, int> > vec = aut->getStatePairsWithTransition(label); // get possible states of the dst node.
+			long long dst = deleted_edge.d;
+			long long label = deleted_edge.label; // for each expired edge, find its dst node. All the expired nodes in the spanning forest must be in a subtree of such dst node.
+			vector<pair<long long, long long> > vec = aut->getStatePairsWithTransition(label); // get possible states of the dst node.
 			for (auto & j : vec) {
-				int dst_state = j.second;
+				long long dst_state = j.second;
 				if (dst_state == -1)
 					continue;
 				if(visited.find(merge_long_long(dst, dst_state))!=visited.end())
@@ -331,21 +331,21 @@ public:
 
 	void output_match(ofstream& fout) // output the recorded result pairs, used to 
 	{
-		for (unordered_map<unsigned long long, unsigned int>::iterator iter = result_pairs.begin(); iter != result_pairs.end(); iter++)
+		for (unordered_map<unsigned long long, long long>::iterator iter = result_pairs.begin(); iter != result_pairs.end(); iter++)
 			fout << (iter->first >> 32) << " " << (iter->first & 0xFFFFFFFF) << " " << iter->second << endl;
 	}
 
-	std::pair<size_t, unsigned int> count(ofstream& fout, int expired_time = 0) // count the memory used in the algorithm, but exclude the memory of automaton and streaming graph, because they are essential for any algorithm.
+	std::pair<size_t, long long> count(ofstream& fout, long long expired_time = 0) // count the memory used in the algorithm, but exclude the memory of automaton and streaming graph, because they are essential for any algorithm.
 	{
-		unsigned int um_size = sizeof(unordered_map<unsigned int, unsigned int>); // size of statistics in a map, which does not change with the key-value type, usually is 56, but may change with the system.
-		unsigned int m_size = sizeof(map<unsigned int, unsigned int>); // size of pointers and statistics in a map, which does not change with the key-value type, usually is 48, but may change with the system.
+		long long um_size = sizeof(unordered_map<long long, long long>); // size of statistics in a map, which does not change with the key-value type, usually is 56, but may change with the system.
+		long long m_size = sizeof(map<long long, long long>); // size of pointers and statistics in a map, which does not change with the key-value type, usually is 48, but may change with the system.
 		// the memory of an unordered_map is computed as um_size + bucket_count()*8 + KV_number * (KV_size + 8). It is a hash table where each bucket is a pointer, pointing to a KV list. Each KV is associated with a pointer
 		// pointing to next KV in the list.
 		// the memory of a map is computed as m_size + KV_number * (KV_size + 24). It is a binary search tree where each KV is associated with 3 pointer, 2 for child and 1 for parent.
 		double memory =  (double)(result_pairs.size() * 24 + result_pairs.bucket_count() * 8 + um_size) / (1024 * 1024);
 		cout << "result pair size: " << result_pairs.size() << ", memory: " << memory << endl;  // number of result vertex pairs, and the memory used to store these results.
 		fout << "result pair size: " << result_pairs.size() << ", memory: " << memory << endl;
-		unsigned int tree_size = m_size + 16; // For S-PATH, we only consider the memory of node_map, root pointer and integer node_num; 
+		long long tree_size = m_size + 16; // For S-PATH, we only consider the memory of node_map, root pointer and integer node_num;
 		double tree_memory = ((double)(um_size + forests.bucket_count() * 8 + forests.size() * (24+tree_size)) / (1024 * 1024)); //  forests has KV size 16, 
 		double tree_node_memory = 0;
 		double sum = 0;
@@ -358,7 +358,7 @@ public:
 			RPQ_tree* tree_pt = forest.second;
 			double node_memory = 0;
 			node_memory += tree_pt->node_map.size() * 40; 
-			for (map<unsigned int, tree_node_index*>::iterator iter2 = tree_pt->node_map.begin(); iter2 != tree_pt->node_map.end(); iter2++)
+			for (map<long long, tree_node_index*>::iterator iter2 = tree_pt->node_map.begin(); iter2 != tree_pt->node_map.end(); iter2++)
 				node_memory += um_size + iter2->second->index.bucket_count() * 8 + iter2->second->index.size() * (24 +40); // 24 is the KV size and 40 is size of each tree node
 			tree_node_memory += node_memory;
 
@@ -387,7 +387,7 @@ public:
 			std::cout << "Average extent: " << avg_extent << "\n";
 		}
 
-		unsigned int tree_node_num = 0;
+		long long tree_node_num = 0;
 		tree_node_memory += m_size  + v2t_index.size() * 40; // memory of the first layer of v2t_index, each KV has 16 byte (integer + pointer)
 		for (auto & iter : v2t_index)
 		{
@@ -418,7 +418,7 @@ public:
 		return std::make_pair(result_pairs.size(), tree_node_num);
 	}
 
-	void print_tree(unsigned int ID, unsigned int state)
+	void print_tree(long long ID, long long state)
 	{
 
 		unordered_map<unsigned long long, RPQ_tree*>::iterator iter = forests.find(merge_long_long(ID, state));
@@ -426,7 +426,7 @@ public:
 			tree_node* tmp = iter->second->root;
 			queue<tree_node*> q;
 			q.push(tmp);
-			int cnt = 0;
+			long long cnt = 0;
 			while (!q.empty())
 			{
 				tmp = q.front();
@@ -451,7 +451,7 @@ public:
 		}
 	}
 
-	void print_path(unsigned int ID, unsigned int root_state, unsigned int dst, unsigned int dst_state)
+	void print_path(long long ID, long long root_state, long long dst, long long dst_state)
 	{
 		unordered_map<unsigned long long, RPQ_tree*>::iterator iter = forests.find(merge_long_long(ID, root_state));
 		if (iter != forests.end()) {

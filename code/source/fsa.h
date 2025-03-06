@@ -14,27 +14,27 @@
 class FiniteStateAutomaton {
 public:
     struct Transition {
-        int fromState;
-        int toState;
-        int label;
+        long long fromState;
+        long long toState;
+        long long label;
     };
     
-    std::unordered_map<int, std::vector<Transition> > transitions;
-    int initialState;
-    std::unordered_set<int> finalStates;
+    std::unordered_map<long long, std::vector<Transition> > transitions;
+    long long initialState;
+    std::unordered_set<long long> finalStates;
     
     FiniteStateAutomaton() : initialState(0) {}
     
-    void addTransition(int fromState, int toState, int label) {
+    void addTransition(long long fromState, long long toState, long long label) {
         transitions[fromState].push_back((Transition){fromState, toState, label});
     }
     
-    void addFinalState(int state) {
+    void addFinalState(long long state) {
         finalStates.insert(state);
     }
     
-    [[nodiscard]] std::vector<std::pair<int, int> > getStatePairsWithTransition(int label) const {
-        std::vector<std::pair<int, int> > statePairs;
+    [[nodiscard]] std::vector<std::pair<long long, long long> > getStatePairsWithTransition(long long label) const {
+        std::vector<std::pair<long long, long long> > statePairs;
         for (const auto& pair : transitions) {
             for (const auto& transition : pair.second) {
                 if (transition.label == label) {
@@ -45,7 +45,7 @@ public:
         return statePairs;
     }
     
-    int getNextState(const int currentState, const int label) {
+    long long getNextState(const long long currentState, const long long label) {
         for (const auto& transition : transitions[currentState]) {
             if (transition.label == label) {
                 return transition.toState;
@@ -54,15 +54,15 @@ public:
         return -1; // No valid transition
     }
     
-    std::map<int, int> getAllSuccessors(const int state) {
-        std::map<int, int> successors;
+    std::map<long long, long long> getAllSuccessors(const long long state) {
+        std::map<long long, long long> successors;
         for (const auto& transition : transitions[state]) {
             successors[transition.label] = transition.toState;
         }
         return successors;
     }
 
-    [[nodiscard]] bool hasLabel(const int label) const {
+    [[nodiscard]] bool hasLabel(const long long label) const {
         for (const auto&[fst, snd] : transitions) {
             for (const auto& transition : snd) {
                 if (transition.label == label) {
@@ -73,7 +73,7 @@ public:
         return false;
     }
 
-    [[nodiscard]] bool isFinalState(const int state) const {
+    [[nodiscard]] bool isFinalState(const long long state) const {
         return finalStates.find(state) != finalStates.end();
     }
     

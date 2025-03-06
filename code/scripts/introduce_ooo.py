@@ -6,7 +6,7 @@ def read_txt(input_file):
     with open(input_file, 'r') as file:
         reader = csv.reader(file, delimiter=' ')
         for row in reader:
-            data.append([int(row[0]), int(row[1]), int(row[2]), int(row[3])])
+            data.append([long long(row[0]), long long(row[1]), long long(row[2]), long long(row[3])])
     return data
 
 def write_txt(output_file, data):
@@ -16,7 +16,7 @@ def write_txt(output_file, data):
 
 def shift_timestamps(data, percentage, time_range):
     num_tuples = len(data)
-    num_to_shift = int(num_tuples * (percentage / 100))
+    num_to_shift = long long(num_tuples * (percentage / 100))
     indices_to_shift = random.sample(range(num_tuples), num_to_shift)
 
     for index in indices_to_shift:

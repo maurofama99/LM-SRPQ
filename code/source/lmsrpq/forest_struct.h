@@ -34,16 +34,16 @@ inline void shrink(unordered_set<K>& us) // this function shrinks the bucket num
 
 struct tree_node // node in the spanning tree
 {
-	unsigned int node_ID;
-	unsigned int edge_timestamp; // timestamp of the edge linked this node and its parent;
-	unsigned int timestamp; // timestamp of this node
-	unsigned int edge_expiration;
-	unsigned int state;
+	long long node_ID;
+	long long edge_timestamp; // timestamp of the edge linked this node and its parent;
+	long long timestamp; // timestamp of this node
+	long long edge_expiration;
+	long long state;
 	bool lm; // indicating if this is a landmark. This bool is not needed in S-PATH and will not be calculated in memory usage. 
 	tree_node* parent;	// pointer to parent. As we may need to move a subtree from one parent to another, a parent pointer will accelerate this procedure, as suggested by the authors.
 	tree_node* child;
 	tree_node* brother;	// first child and list of brother, classic method for tree maintaining
-	tree_node(unsigned int ID, unsigned int state_, unsigned int time, unsigned int edge_time)
+	tree_node(long long ID, long long state_, long long time, long long edge_time)
 	{
 		node_ID = ID;
 		state = state_;
@@ -58,7 +58,7 @@ struct tree_node // node in the spanning tree
 
 struct tree_node_index //  maps a vertex ID to the tree node in a spanning tree
 {
-	unordered_map<unsigned int, tree_node*> index;
+	unordered_map<long long, tree_node*> index;
 	~tree_node_index()
 	{
 		index.clear();
@@ -66,7 +66,7 @@ struct tree_node_index //  maps a vertex ID to the tree node in a spanning tree
 };
 struct time_info_index // maps a vertex ID to the timestamp in TI map;
 {
-	unordered_map<unsigned int, unsigned int> index;
+	unordered_map<long long, long long> index;
 	~time_info_index()
 	{
 		index.clear();
@@ -77,14 +77,14 @@ class RPQ_tree // class for the spanning trees in the spanning forest.
 {
 public:
 	tree_node* root;
-	map<unsigned int, tree_node_index*> node_map; // map from a state to the relevant node index. In the node index the reverse map from vertex ID to the tree node pointer is stored. The state in the first layer an the vertex ID in the second layer form a product graph node ID 
-	map<unsigned int, time_info_index*> time_info; // TI map, used by LM-SRPQ, but not by S-PATH. Maps a state to the relevant time_info_index. In each the reverse index we map vertex ID to the timestamp in TI map.The state in the first layer an the vertex ID in the second layer form a product graph node ID 
+	map<long long, tree_node_index*> node_map; // map from a state to the relevant node index. In the node index the reverse map from vertex ID to the tree node pointer is stored. The state in the first layer an the vertex ID in the second layer form a product graph node ID
+	map<long long, time_info_index*> time_info; // TI map, used by LM-SRPQ, but not by S-PATH. Maps a state to the relevant time_info_index. In each the reverse index we map vertex ID to the timestamp in TI map.The state in the first layer an the vertex ID in the second layer form a product graph node ID
 	unordered_set<unsigned long long> landmarks; // set of landmarks contained in this tree. Merge the vertex ID and state with merge_long_long. Used by LM-SRPQ.
-	unordered_map<unsigned long long, unsigned int> timed_landmarks; // this structure is used to directly get the landmarks and the timestamp of this landmark in the spanning tree. 
+	unordered_map<unsigned long long, long long> timed_landmarks; // this structure is used to directly get the landmarks and the timestamp of this landmark in the spanning tree.
 	// This structure is used when we need to traverse forward in the dependency graph, and thus is only needed in the dependency-forest version of LM-SRPQ
-	int node_cnt;
-	int min_timestamp = MAX_INT;
-	int max_timestamp = -1;
+	long long node_cnt;
+	long long min_timestamp = MAX_INT;
+	long long max_timestamp = -1;
 
 	RPQ_tree()
 	{
@@ -108,9 +108,9 @@ public:
 				}
 				delete tmp;
 			}
-			for (map<unsigned int, tree_node_index*>::iterator iter = node_map.begin(); iter != node_map.end(); iter++)
+			for (map<long long, tree_node_index*>::iterator iter = node_map.begin(); iter != node_map.end(); iter++)
 				delete iter->second;
-			for (map<unsigned int, time_info_index*>::iterator iter = time_info.begin(); iter != time_info.end(); iter++)
+			for (map<long long, time_info_index*>::iterator iter = time_info.begin(); iter != time_info.end(); iter++)
 				delete iter->second;
 			node_map.clear();
 			landmarks.clear();
@@ -120,7 +120,7 @@ public:
 	}
 	void clear_time_info() // clear the TI map, used when a spanning tree is not an LM tree any more.
 	{
-		for (map<unsigned int, time_info_index*>::iterator iter = time_info.begin(); iter != time_info.end(); iter++)
+		for (map<long long, time_info_index*>::iterator iter = time_info.begin(); iter != time_info.end(); iter++)
 			delete iter->second;
 		time_info.clear();
 	}
@@ -128,13 +128,13 @@ public:
 	{
 		clear();
 	}
-	void add_time_info(unsigned int v, unsigned int state, unsigned int time) // add a product graph node ID + timestamp pair to the TI map
+	void add_time_info(long long v, long long state, long long time) // add a product graph node ID + timestamp pair to the TI map
 	{
 		if (time_info.find(state) == time_info.end())
 			time_info[state] = new time_info_index;
 		time_info[state]->index[v] = time;
 	}
-	unsigned int get_time_info(unsigned int v, unsigned int state) // get the timestamp of a product graph node in the TI map
+	long long get_time_info(long long v, long long state) // get the timestamp of a product graph node in the TI map
 	{
 		if (time_info.find(state) == time_info.end())
 			return 0;
@@ -143,7 +143,7 @@ public:
 		else
 			return 0;
 	}
-	tree_node* add_node(unsigned int v, unsigned int state, tree_node* parent, unsigned int time, unsigned int edge_time, unsigned int exp) // add a new tree node with given ID, state, node time ,edge time and parent
+	tree_node* add_node(long long v, long long state, tree_node* parent, long long time, long long edge_time, long long exp) // add a new tree node with given ID, state, node time ,edge time and parent
 	{
 		auto* tmp = new tree_node(v, state, time, edge_time);
 		tmp->edge_expiration = exp;
@@ -167,7 +167,7 @@ public:
 		return tmp;
 	}
 
-	void set_lm(unsigned int v, unsigned int state) // set the LM tag of a node to true;
+	void set_lm(long long v, long long state) // set the LM tag of a node to true;
 	{
 		if (node_map.find(state) != node_map.end() && node_map[state]->index.find(v) != node_map[state]->index.end()) {
 			tree_node *tmp = node_map[state]->index[v];
@@ -179,7 +179,7 @@ public:
 	{
 		landmarks.insert(lm);
 	}
-	void add_timed_lm(unsigned long long lm, unsigned int timestamp)
+	void add_timed_lm(unsigned long long lm, long long timestamp)
 	{
 		timed_landmarks[lm] = timestamp;
 	}
@@ -201,7 +201,7 @@ public:
 
 	void remove_node(tree_node* node) // delete a node from the node map and the landmark set (if it is in the landmark set)
 	{
-		unsigned int v = node->node_ID;
+		long long v = node->node_ID;
 		if (node_map.find(node->state) != node_map.end())
 		{
 			node_map[node->state]->index.erase(node->node_ID);
@@ -231,7 +231,7 @@ public:
 		shrink(landmarks);
 	}
 
-	tree_node* remove_node(unsigned int v, unsigned int state) // given a product graph node, delete its corresponding tree node from the node map and return the tree node pointer.
+	tree_node* remove_node(long long v, long long state) // given a product graph node, delete its corresponding tree node from the node map and return the tree node pointer.
 	{
 		tree_node* ans = NULL;
 		if (node_map.find(state) != node_map.end())
@@ -252,7 +252,7 @@ public:
 		
 	}
 
-	tree_node* delete_node(unsigned int v, unsigned int state) // given a product graph node, separate its corresponding tree node from the spanning tree and delete it from the nodemap, and return the tree node pointer.
+	tree_node* delete_node(long long v, long long state) // given a product graph node, separate its corresponding tree node from the spanning tree and delete it from the nodemap, and return the tree node pointer.
 	{
 		tree_node* node = remove_node(v, state);
 		separate_node(node);
@@ -275,7 +275,7 @@ public:
 		parent->child = child;
 	}
 
-	tree_node* find_node(unsigned int ID, unsigned int state) // given a product graph node, find its corresponding tree node
+	tree_node* find_node(long long ID, long long state) // given a product graph node, find its corresponding tree node
 	{
 		tree_node* result = NULL;
 		if (node_map.find(state) != node_map.end())
@@ -304,9 +304,9 @@ struct tree_info // structure for tree pointer list, used into the reverse map w
 
 struct v2t_unit // structure stores a vertex id and a tree_root ID, used to find the tree_info structure in a vertex_to_tree map, namely reverse map between product graph node and normal trees containing it.
 {
-	unsigned int vertex;
-	unsigned int tree_root;
-	v2t_unit(unsigned int v, unsigned int tr)
+	long long vertex;
+	long long tree_root;
+	v2t_unit(long long v, long long tr)
 	{
 		tree_root = tr;
 		vertex = v;
@@ -348,10 +348,10 @@ bool operator>(const v2t_unit& v1, const v2t_unit& v2)
 struct v2l_unit// structure stores a vertex id and a tree_root ID and a tree_root state, used to find the tree_info structure in a vertex_to_LM map, namely reverse map between product graph node and LM trees containing it.
 	// different from v2t_unit, there is an additional root_state, as the state of root of normal trees is always the initial state 0, but LM trees have different root state;
 {
-	unsigned int vertex;
-	unsigned int root_ID;
-	unsigned int root_state;
-	v2l_unit(unsigned int v, unsigned int tr, unsigned int state)
+	long long vertex;
+	long long root_ID;
+	long long root_state;
+	v2l_unit(long long v, long long tr, long long state)
 	{
 		root_ID = tr;
 		vertex = v;
@@ -398,12 +398,12 @@ bool operator>(const v2l_unit& v1, const v2l_unit& v2)
 class tree_info_index // reverse index from vertex ID to normal trees containing the product graph node. State of the product graph node is given in the upper layer. All product graph nodes in this index have the same state.
 {
 public:
-	unordered_map<unsigned int, tree_info*> tree_index; // map from vertex ID to normal trees
+	unordered_map<long long, tree_info*> tree_index; // map from vertex ID to normal trees
 	map<v2t_unit, tree_info*> info_map; // map from combination of vertex ID and tree root to the tree_info unit, used in deletion to quickly delete a reverse index unit.
 	tree_info_index() {}
 	~tree_info_index()
 	{
-		for (unordered_map<unsigned int, tree_info*>::iterator iter = tree_index.begin(); iter != tree_index.end(); iter++)
+		for (unordered_map<long long, tree_info*>::iterator iter = tree_index.begin(); iter != tree_index.end(); iter++)
 		{
 			tree_info* cur = iter->second;
 			while (cur)
@@ -416,11 +416,11 @@ public:
 		tree_index.clear();
 		info_map.clear();
 	}
-	void add_node(RPQ_tree* tree_pt, unsigned int v, unsigned int root_ID) // add a normal tree pointer + vertex ID to the reverse index
+	void add_node(RPQ_tree* tree_pt, long long v, long long root_ID) // add a normal tree pointer + vertex ID to the reverse index
 	{
 		if (info_map.find(v2t_unit(v, root_ID)) != info_map.end())	// if the combination is already stored.
 			return;
-		unordered_map<unsigned int, tree_info*>::iterator iter = tree_index.find(v);
+		unordered_map<long long, tree_info*>::iterator iter = tree_index.find(v);
 		if (iter == tree_index.end())
 		{
 			tree_info* cur = new tree_info(tree_pt); //if there is no tree list before, add a new one
@@ -437,7 +437,7 @@ public:
 		}
 	}
 
-	void delete_node(unsigned int v, unsigned int root_ID) // delete a tree info unit given the vertex ID -tree root pair, used when a node is deleted from a normal tree.
+	void delete_node(long long v, long long root_ID) // delete a tree info unit given the vertex ID -tree root pair, used when a node is deleted from a normal tree.
 	{
 		if (info_map.find(v2t_unit(v, root_ID)) != info_map.end()) // use the info_map to find the unit without scanning the list. 
 		{
@@ -451,7 +451,7 @@ public:
 			}
 			else
 			{
-				unordered_map<unsigned int, tree_info*>::iterator iter = tree_index.find(v); // else we need to change the head to the next
+				unordered_map<long long, tree_info*>::iterator iter = tree_index.find(v); // else we need to change the head to the next
 				if (iter != tree_index.end())
 				{
 					assert(iter->second == cur);
@@ -476,12 +476,12 @@ public:
 class lm_info_index // similar to the tree_info_index, but is used for LM trees. All the functions are also similar.
 {
 public:
-	unordered_map<unsigned int, tree_info*> tree_index;
+	unordered_map<long long, tree_info*> tree_index;
 	map<v2l_unit, tree_info*> info_map;
 	lm_info_index() {}
 	~lm_info_index()
 	{
-		for (unordered_map<unsigned int, tree_info*>::iterator iter = tree_index.begin(); iter != tree_index.end(); iter++)
+		for (unordered_map<long long, tree_info*>::iterator iter = tree_index.begin(); iter != tree_index.end(); iter++)
 		{
 			tree_info* cur = iter->second;
 			while (cur)
@@ -494,11 +494,11 @@ public:
 		tree_index.clear();
 		info_map.clear();
 	}
-	void add_node(RPQ_tree* tree_pt, unsigned int v, unsigned int root_ID, unsigned int root_state)
+	void add_node(RPQ_tree* tree_pt, long long v, long long root_ID, long long root_state)
 	{
 		if (info_map.find(v2l_unit(v, root_ID, root_state)) != info_map.end())
 			return;
-		unordered_map<unsigned int, tree_info*>::iterator iter = tree_index.find(v);
+		unordered_map<long long, tree_info*>::iterator iter = tree_index.find(v);
 		if (iter == tree_index.end())
 		{
 			tree_info* cur = new tree_info(tree_pt);
@@ -515,7 +515,7 @@ public:
 		}
 	}
 
-	void delete_node(unsigned int v, unsigned int root_ID, unsigned int root_state)
+	void delete_node(long long v, long long root_ID, long long root_state)
 	{
 		if (info_map.find(v2l_unit(v, root_ID, root_state)) != info_map.end())
 		{
@@ -529,7 +529,7 @@ public:
 			}
 			else
 			{
-				unordered_map<unsigned int, tree_info*>::iterator iter = tree_index.find(v);
+				unordered_map<long long, tree_info*>::iterator iter = tree_index.find(v);
 				if (iter != tree_index.end())
 				{
 					assert(iter->second == cur);
@@ -552,10 +552,10 @@ public:
 
 struct vertex_score // structe used to record score of a product graph node, used in landmark selection. The score is the approximated stpanning tree size.
 {
-	unsigned int ID;
-	unsigned int state;
+	long long ID;
+	long long state;
 	double score;
-	vertex_score(unsigned int v, unsigned int state_, double s)
+	vertex_score(long long v, long long state_, double s)
 	{
 		ID = v;
 		state = state_;
@@ -581,16 +581,16 @@ bool operator>(const vertex_score& v1, const vertex_score& v2)
 
 struct pg_edge
 {
-	unsigned int src;
-	unsigned int src_state;
-	unsigned int dst;
-	unsigned int dst_state;
-	unsigned int timestamp;
+	long long src;
+	long long src_state;
+	long long dst;
+	long long dst_state;
+	long long timestamp;
 	pg_edge* src_prev;
 	pg_edge* src_next;	// cross list, maintaining the graph structure
 	pg_edge* dst_next;
 	pg_edge* dst_prev;
-	pg_edge(unsigned int src_id_ = 0, unsigned int src_state_ = 0, unsigned int dst_id_ = 0, unsigned int dst_state_ = 0, unsigned int timestamp_ = 0)
+	pg_edge(long long src_id_ = 0, long long src_state_ = 0, long long dst_id_ = 0, long long dst_state_ = 0, long long timestamp_ = 0)
 	{
 		src = src_id_;
 		dst = dst_id_;
@@ -606,11 +606,11 @@ struct pg_edge
 
 struct pg_node
 {
-	unsigned int state;
-	unsigned int id;
+	long long state;
+	long long id;
 	pg_edge* src_list;
 	pg_edge* dst_list;
-	pg_node(unsigned int id_ =0 , unsigned int state_ = 0)
+	pg_node(long long id_ =0 , long long state_ = 0)
 	{
 		id = id_;
 		state = state_;
@@ -622,7 +622,7 @@ class product_graph
 {
 public:
 	unordered_map<unsigned long long, pg_node> g;
-	unsigned int edge_cnt = 0;
+	long long edge_cnt = 0;
 	product_graph()
 	{
 		g.clear();
@@ -641,7 +641,7 @@ public:
 			g.clear();
 		}
 	}
-	void insert_edge(unsigned int src, unsigned int src_state, unsigned int dst, unsigned int dst_state, unsigned int timestamp)
+	void insert_edge(long long src, long long src_state, long long dst, long long dst_state, long long timestamp)
 	{
 		unsigned long long src_info = merge_long_long(src, src_state);
 		unsigned long long dst_info = merge_long_long(dst, dst_state);
@@ -683,7 +683,7 @@ public:
 			g[dst_info].dst_list = tmp;
 		}
 	}
-	bool expire_edge(unsigned int src, unsigned int src_state, unsigned int dst, unsigned int dst_state, unsigned int expired_time)
+	bool expire_edge(long long src, long long src_state, long long dst, long long dst_state, long long expired_time)
 	{
 		unsigned long long src_info = merge_long_long(src, src_state);
 		unsigned long long dst_info = merge_long_long(dst, dst_state);
@@ -750,7 +750,7 @@ public:
 		return false;
 	}
 
-	void get_successor(unsigned int src, unsigned int src_state, vector < pair<unsigned long long, unsigned int> >& suc)
+	void get_successor(long long src, long long src_state, vector < pair<unsigned long long, long long> >& suc)
 	{
 		unsigned long long src_info = merge_long_long(src, src_state);
 		if (g.find(src_info) != g.end())
@@ -764,7 +764,7 @@ public:
 		}
 	}
 
-	void get_precursor(unsigned int dst, unsigned int dst_state, vector < pair<unsigned long long, unsigned int> >& pre)
+	void get_precursor(long long dst, long long dst_state, vector < pair<unsigned long long, long long> >& pre)
 	{
 		unsigned long long dst_info = merge_long_long(dst, dst_state);
 		if (g.find(dst_info) != g.end())
@@ -790,7 +790,7 @@ struct time_compare
 
 struct pair_compare
 {
-	bool operator()(pair<unsigned long long, unsigned int>& p1, pair<unsigned long long, unsigned int> &p2)
+	bool operator()(pair<unsigned long long, long long>& p1, pair<unsigned long long, long long> &p2)
 	{
 		return p1.second<p2.second;
 	}

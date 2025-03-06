@@ -10,9 +10,9 @@ def extract_data_from_file(file_path):
     with open(file_path, 'r') as file:
         for line in file:
             if line.startswith("resulting paths:"):
-                resulting_paths.append(int(line.split(":")[1].strip()))
+                resulting_paths.append(long long(line.split(":")[1].strip()))
             elif line.startswith("execution time:"):
-                execution_times.append(int(line.split(":")[1].strip()))
+                execution_times.append(long long(line.split(":")[1].strip()))
     return resulting_paths, execution_times
 
 
@@ -55,7 +55,7 @@ def main():
 
             for k, algorithm in enumerate(['1', '2', '3', '4']):
                 y = [data[query][key].get(algorithm, {}).get(metric, 0) for key in keys]
-                ax.bar([p + k * width for p in x], y, width=width, label=f'{["S-PATH", "LMSRPQ", "Us", "Sliding Window"][int(algorithm)-1]}')
+                ax.bar([p + k * width for p in x], y, width=width, label=f'{["S-PATH", "LMSRPQ", "Us", "Sliding Window"][long long(algorithm)-1]}')
 
             ax.set_xticks([p + 1.5 * width for p in x])
             ax.set_xticklabels(keys, rotation=45)

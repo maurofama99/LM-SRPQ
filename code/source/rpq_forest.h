@@ -11,20 +11,20 @@
 #include "streaming_graph.h"
 
 struct Node {
-    int id;
-    unsigned int vertex;
-    int state;
+    long long id;
+    long long vertex;
+    long long state;
     std::vector<Node *> children;
     Node *parent;
     std::vector<Node *> candidate_parents;
 
-    Node(int child_id, unsigned int child_vertex, int child_state, Node *node) : id(child_id), vertex(child_vertex),
+    Node(long long child_id, long long child_vertex, long long child_state, Node *node) : id(child_id), vertex(child_vertex),
         state(child_state), parent(node) {
     };
 };
 
 struct Tree {
-    unsigned int rootVertex;
+    long long rootVertex;
     Node *rootNode;
     bool expired;
 
@@ -35,7 +35,7 @@ struct Tree {
 
 struct TreeHash {
     size_t operator()(const Tree &p) const {
-        return hash<unsigned int>()(p.rootVertex);
+        return hash<long long>()(p.rootVertex);
     }
 };
 
@@ -51,12 +51,12 @@ struct pair_hash {
 
 class Forest {
 public:
-    std::unordered_map<unsigned int, Tree> trees; // Currently active trees, Key: root vertex, Value: Tree
-    std::unordered_map<unsigned int, std::unordered_set<Tree, TreeHash> > vertex_tree_map;
+    std::unordered_map<long long, Tree> trees; // Currently active trees, Key: root vertex, Value: Tree
+    std::unordered_map<long long, std::unordered_set<Tree, TreeHash> > vertex_tree_map;
     // Maps vertex to tree to which it belongs to
     // key: pair ts open, ts close, value: a pair of trees (first) and vertex_tree_map (second)
-    std::unordered_map<std::pair<unsigned, unsigned>, std::pair<std::unordered_map<unsigned int, Tree>,
-        std::unordered_map<unsigned int, std::unordered_set<Tree, TreeHash> > >, pair_hash> backup_map;
+    std::unordered_map<std::pair<unsigned, unsigned>, std::pair<std::unordered_map<long long, Tree>,
+        std::unordered_map<long long, std::unordered_set<Tree, TreeHash> > >, pair_hash> backup_map;
 
     ~Forest() {
         for (auto &[fst, snd]: trees) {
@@ -67,7 +67,7 @@ public:
     // a vertex can be root of only one tree
     // proof: since we have only one initial state and the tree has an initial state as root
     // it exists only one pair vertex-state that can be root of a tree
-    void addTree(int rootId, unsigned int rootVertex, int rootState) {
+    void addTree(long long rootId, long long rootVertex, long long rootState) {
         if (trees.find(rootVertex) == trees.end()) {
             auto rootNode = new Node(rootId, rootVertex, rootState, nullptr);
             trees[rootVertex] = (Tree){rootVertex, rootNode, false};
@@ -75,8 +75,8 @@ public:
         }
     }
 
-    bool addChildToParent(unsigned int rootVertex, unsigned int parentVertex, int parentState, int childId,
-                          unsigned int childVertex, int childState) {
+    bool addChildToParent(long long rootVertex, long long parentVertex, long long parentState, long long childId,
+                          long long childVertex, long long childState) {
         if (Node *parent = findNodeInTree(rootVertex, parentVertex, parentState)) {
             parent->children.push_back(new Node(childId, childVertex, childState, parent));
             vertex_tree_map[childVertex].insert(trees[rootVertex]);
@@ -107,17 +107,17 @@ public:
         }
     }
 
-    bool hasTree(unsigned int rootVertex) {
+    bool hasTree(long long rootVertex) {
         return trees.find(rootVertex) != trees.end();
     }
 
-    Node *findNodeInTree(unsigned int rootVertex, unsigned int vertex, int state, Node **parent = nullptr) {
+    Node *findNodeInTree(long long rootVertex, long long vertex, long long state, Node **parent = nullptr) {
         Node *root = trees[rootVertex].rootNode;
         return searchNodeParent(root, vertex, state, parent);
     }
 
-    std::set<unsigned int> getKeySet(unsigned int vertex) {
-        std::set<unsigned int> result;
+    std::set<long long> getKeySet(long long vertex) {
+        std::set<long long> result;
 
         if (vertex_tree_map.count(vertex)) {
             for (auto tree: vertex_tree_map.find(vertex)->second) {
@@ -132,7 +132,7 @@ public:
      * @param state state associated to the vertex node
      * @return the set of trees to which the node @param vertex @param state belongs to
      */
-    std::vector<Tree> findTreesWithNode(unsigned int vertex, int state) {
+    std::vector<Tree> findTreesWithNode(long long vertex, long long state) {
         std::vector<Tree> result;
         // TODO Optimize by storing the state in the vertex-tree map
         if (vertex_tree_map.count(vertex)) {
@@ -152,7 +152,7 @@ public:
         // Remove the vertex from the map
 
         for (auto [src, dst]: candidate_edges) {
-            std::vector<unsigned int> vertexes = {src, dst};
+            std::vector<long long> vertexes = {src, dst};
             for (auto vertex: vertexes) {
                 if (vertex_tree_map.find(vertex) == vertex_tree_map.end()) continue;
                 auto treesSet = vertex_tree_map.at(vertex);
@@ -179,8 +179,8 @@ public:
     }
 
     void deepCopyTreesAndVertexTreeMap(unsigned ts_open, unsigned ts_close) {
-        std::unordered_map<unsigned int, Tree> trees_copy;
-        std::unordered_map<unsigned int, std::unordered_set<Tree, TreeHash> > vertex_tree_map_copy;
+        std::unordered_map<long long, Tree> trees_copy;
+        std::unordered_map<long long, std::unordered_set<Tree, TreeHash> > vertex_tree_map_copy;
 
         // Deep copy trees
         for (const auto &[rootVertex, tree]: trees) {
@@ -208,9 +208,9 @@ public:
         }
     }
 
-    void printTree(Node *node, int depth = 0) const {
+    void printTree(Node *node, long long depth = 0) const {
         if (!node) return;
-        for (int i = 0; i < depth; ++i) std::cout << "  ";
+        for (long long i = 0; i < depth; ++i) std::cout << "  ";
         std::cout << "Node (id: " << node->id << ", vertex: " << node->vertex << ", state: " << node->state << ")\n";
         for (Node *child: node->children) {
             printTree(child, depth + 1);
@@ -276,7 +276,7 @@ private:
         return root_copy;
     }
 
-    Node *searchNodeParent(Node *node, unsigned int vertex, int state, Node **parent = nullptr) {
+    Node *searchNodeParent(Node *node, long long vertex, long long state, Node **parent = nullptr) {
         if (!node) return nullptr;
         if (node->vertex == vertex && node->state == state) return node;
         for (Node *child: node->children) {
@@ -287,7 +287,7 @@ private:
         return nullptr;
     }
 
-    Node *searchNode(Node *node, unsigned int vertex, int state) {
+    Node *searchNode(Node *node, long long vertex, long long state) {
         if (!node) return nullptr;
         if (node->vertex == vertex && node->state == state) return node;
         for (Node *child: node->children) {
@@ -297,7 +297,7 @@ private:
         return nullptr;
     }
 
-    Node *searchNodeNoState(Node *node, unsigned int vertex) {
+    Node *searchNodeNoState(Node *node, long long vertex) {
         if (!node) return nullptr;
         if (node->vertex == vertex) return node;
         for (Node *child: node->children) {
@@ -307,7 +307,7 @@ private:
         return nullptr;
     }
 
-    void deleteSubTree(Node *node, unsigned int rootVertex) {
+    void deleteSubTree(Node *node, long long rootVertex) {
         if (!node) return;
 
         // remove the node from the parent's children list
@@ -322,7 +322,7 @@ private:
         // deleteTreeRecursive(node, rootVertex);
     }
 
-    void deleteTreeIterative(Node *node, unsigned int rootVertex) {
+    void deleteTreeIterative(Node *node, long long rootVertex) {
         if (!node) return;
         std::stack<Node *> stack;
         stack.push(node);
@@ -352,7 +352,7 @@ private:
         }
     }
 
-    void deleteTreeRecursive(Node *node, unsigned int rootVertex) {
+    void deleteTreeRecursive(Node *node, long long rootVertex) {
         if (!node) return;
         for (Node *child: node->children) {
             deleteTreeRecursive(child, rootVertex);

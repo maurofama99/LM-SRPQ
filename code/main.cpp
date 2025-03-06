@@ -15,16 +15,16 @@
 using namespace std;
 
 typedef struct Config {
-    int algorithm;
+    long long algorithm;
     std::string input_data_path;
     std::string output_base_folder;
-    int size;
-    int slide;
-    int query_type;
-    std::vector<int> labels;
+    long long size;
+    long long slide;
+    long long query_type;
+    std::vector<long long> labels;
     double zscore;
-    unsigned int watermark;
-    int ooo_strategy;
+    long long watermark;
+    long long ooo_strategy;
 } config;
 
 config readConfig(const std::string &filename) {
@@ -71,14 +71,14 @@ config readConfig(const std::string &filename) {
 
 class window {
 public:
-    unsigned int t_open;
-    unsigned int t_close;
+    long long t_open;
+    long long t_close;
     timed_edge *first;
     timed_edge *last;
     bool evicted = false;
 
     // Constructor
-    window(unsigned int t_open, unsigned int t_close, timed_edge *first, timed_edge *last) {
+    window(long long t_open, long long t_close, timed_edge *first, timed_edge *last) {
         this->t_open = t_open;
         this->t_close = t_close;
         this->first = first;
@@ -86,24 +86,24 @@ public:
     }
 };
 
-vector<int> setup_automaton(int query_type, FiniteStateAutomaton *aut, const vector<int> &labels);
+vector<long long> setup_automaton(long long query_type, FiniteStateAutomaton *aut, const vector<long long> &labels);
 
 int main(int argc, char *argv[]) {
     string config_path = argv[1];
     config config = readConfig(config_path.c_str());
 
-    int algorithm = config.algorithm;
+    long long algorithm = config.algorithm;
     ifstream fin(config.input_data_path.c_str());
     string output_base_folder = config.output_base_folder;
-    unsigned int size = config.size;
-    unsigned int slide = config.slide;
-    int query_type = config.query_type;
+    long long size = config.size;
+    long long slide = config.slide;
+    long long query_type = config.query_type;
     double zscore = config.zscore;
     bool BACKWARD_RETENTION = zscore != 0;
 
-    unsigned int watermark = config.watermark;
-    int ooo_strategy = config.ooo_strategy; // 0: Copy State, 1: Window Replay
-    unsigned int current_time = 0;
+    long long watermark = config.watermark;
+    long long ooo_strategy = config.ooo_strategy; // 0: Copy State, 1: Window Replay
+    long long current_time = 0;
     bool handle_ooo = false;
 
     if (size % slide != 0) {
@@ -122,39 +122,39 @@ int main(int argc, char *argv[]) {
     }
 
     auto *aut = new FiniteStateAutomaton();
-    vector<int> scores = setup_automaton(query_type, aut, config.labels);
+    vector<long long> scores = setup_automaton(query_type, aut, config.labels);
     auto *f = new Forest();
     auto *sg = new streaming_graph(zscore);
 
     vector<window> windows;
 
     // Buffer to store evicted windows eventually needed for out-of-order elements computation
-    unordered_map<int, vector<sg_edge*>> windows_backup; // key: window opening time, value: vector of elements belonging to the window.
+    unordered_map<long long, vector<sg_edge*>> windows_backup; // key: window opening time, value: vector of elements belonging to the window.
 
-    unsigned int s, d, l;
-    unsigned int t;
+    long long s, d, l;
+    long long t;
 
-    unsigned int t0 = 0;
-    unsigned int edge_number = 0;
-    unsigned int time;
-    int timestamp;
+    long long t0 = 0;
+    long long edge_number = 0;
+    long long time;
+    long long timestamp;
 
-    unsigned int last_window_index = 0;
-    unsigned int window_offset = 0;
+    long long last_window_index = 0;
+    long long window_offset = 0;
     windows.emplace_back(0, size, nullptr, nullptr);
 
     bool evict = false;
     vector<size_t> to_evict;
-    unsigned int last_expired_window = 0;
+    long long last_expired_window = 0;
 
-    int checkpoint = 1;
+    long long checkpoint = 1;
 
     auto *f1 = new RPQ_forest(sg, aut); // TS Propagation
 
     auto *f2 = new LM_forest(sg, aut); // Landmark Trees
     double candidate_rate = 0.2;
     double benefit_threshold = 1.5;
-    for (int i = 0; i < scores.size(); i++)
+    for (long long i = 0; i < scores.size(); i++)
         f2->aut_scores[i] = scores.at(i);
 
     auto query = new SPathHandler(*aut, *f, *sg); // Density-based Retention
@@ -176,12 +176,12 @@ int main(int argc, char *argv[]) {
         if (!aut->hasLabel(l))
             continue;
 
-        int watermark_gap = current_time - time;
+        long long watermark_gap = current_time - time;
 
         /* ADD */
         double c_sup = ceil(static_cast<double>(time) / static_cast<double>(slide)) * slide;
         double o_i = c_sup - size;
-        unsigned int window_close;
+        long long window_close;
 
         handle_ooo = false;
         if (time >= current_time) { // in-order element
@@ -197,7 +197,7 @@ int main(int argc, char *argv[]) {
             } while (o_i <= time);
 
         } else if (watermark_gap > 0 && watermark_gap <= watermark) { // out-of-order element before watermark expiration
-            std::vector<std::pair<unsigned int, unsigned int> > windows_to_recover;
+            std::vector<std::pair<long long, long long> > windows_to_recover;
             do {
                 window_close = o_i + size;
                 if (windows[last_window_index].t_close < window_close) {
@@ -400,7 +400,7 @@ int main(int argc, char *argv[]) {
         }
 
         if (watermark != 0) {
-            for (unsigned int i = last_expired_window; i < windows.size(); i++) {
+            for (long long i = last_expired_window; i < windows.size(); i++) {
                 if (windows[i].t_close <= time - watermark) {
 
                     if (ooo_strategy == 0) {
@@ -432,7 +432,7 @@ int main(int argc, char *argv[]) {
     }
 
     clock_t finish = clock();
-    unsigned int time_used = (double) (finish - start) / CLOCKS_PER_SEC;
+    long long time_used = (double) (finish - start) / CLOCKS_PER_SEC;
     cout << "execution time: " << time_used << endl;
 
     // Construct output file path
@@ -495,8 +495,8 @@ int main(int argc, char *argv[]) {
 }
 
 // Set up the automaton correspondant for each query
-vector<int> setup_automaton(int query_type, FiniteStateAutomaton *aut, const vector<int> &labels) {
-    vector<int> scores;
+vector<long long> setup_automaton(long long query_type, FiniteStateAutomaton *aut, const vector<long long> &labels) {
+    vector<long long> scores;
 
     switch (query_type) {
         case 1:

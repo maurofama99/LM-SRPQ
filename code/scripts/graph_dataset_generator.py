@@ -6,8 +6,8 @@ def generate_dynamic_graph(file_name, num_vertices, num_edges, num_labels):
 
     Args:
         file_name (str): Nome del file di output.
-        num_vertices (int): Numero di vertici univoci.
-        num_edges (int): Numero di archi da generare.
+        num_vertices (long long): Numero di vertici univoci.
+        num_edges (long long): Numero di archi da generare.
     """
     edges = []
     timestamp = 0

@@ -2,24 +2,24 @@ import csv
 from collections import defaultdict
 
 def read_csv(file_path):
-    result_set = defaultdict(int)  # Store occurrences of source-destination pairs
+    result_set = defaultdict(long long)  # Store occurrences of source-destination pairs
     same_source_destination = 0  # Count pairs where source and destination are the same
     with open(file_path, "r") as f:
         reader = csv.reader(f)
         for row in reader:
-            source, destination, _ = map(int, row)
+            source, destination, _ = map(long long, row)
             result_set[(source, destination)] += 1
             if source == destination:
                 same_source_destination += 1
     return result_set, same_source_destination
 
 def read_csv_db(file_path):
-    result_set = defaultdict(int)  # Store occurrences of source-destination pairs
+    result_set = defaultdict(long long)  # Store occurrences of source-destination pairs
     same_source_destination = 0  # Count pairs where source and destination are the same
     with open(file_path, "r") as f:
         reader = csv.reader(f)
         for row in reader:
-            source, destination = map(int, row)
+            source, destination = map(long long, row)
             result_set[(source, destination)] += 1
             if source == destination:
                 same_source_destination += 1
