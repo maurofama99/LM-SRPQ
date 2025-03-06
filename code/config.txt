@@ -1,8 +1,10 @@
 algorithm=3
-input_data_path=code/dataset/so/so-stream_labelled.txt
+input_data_path=code/dataset/so/so-stream_debug_500k.txt
 output_base_folder=code/
 size=60000
 slide=30000
 query_type=4
 labels=1,2,3
-zscore=0.65
+zscore=0
+watermark=120000
+ooo_strategy=1

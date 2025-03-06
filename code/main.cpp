@@ -23,6 +23,8 @@ typedef struct Config {
     int query_type;
     std::vector<int> labels;
     double zscore;
+    unsigned int watermark;
+    int ooo_strategy;
 } config;
 
 config readConfig(const std::string &filename) {
@@ -31,7 +33,7 @@ config readConfig(const std::string &filename) {
     std::string line;
 
     if (!file) {
-        std::cerr << "Error opening file: " << filename << std::endl;
+        std::cerr << "Error opening configuration file: " << filename << std::endl;
         exit(EXIT_FAILURE);
     }
 
@@ -61,6 +63,8 @@ config readConfig(const std::string &filename) {
     }
 
     config.zscore = std::stod(configMap["zscore"]);
+    config.watermark = std::stoi(configMap["watermark"]);
+    config.ooo_strategy = std::stoi(configMap["ooo_strategy"]);
 
     return config;
 }
@@ -97,7 +101,8 @@ int main(int argc, char *argv[]) {
     double zscore = config.zscore;
     bool BACKWARD_RETENTION = zscore != 0;
 
-    unsigned int watermark = strtol(argv[2], nullptr, 10);
+    unsigned int watermark = config.watermark;
+    int ooo_strategy = config.ooo_strategy; // 0: Copy State, 1: Window Replay
     unsigned int current_time = 0;
     bool handle_ooo = false;
 
@@ -122,6 +127,9 @@ int main(int argc, char *argv[]) {
     auto *sg = new streaming_graph(zscore);
 
     vector<window> windows;
+
+    // Buffer to store evicted windows eventually needed for out-of-order elements computation
+    unordered_map<int, vector<sg_edge*>> windows_backup; // key: window opening time, value: vector of elements belonging to the window.
 
     unsigned int s, d, l;
     unsigned int t;
@@ -151,8 +159,7 @@ int main(int argc, char *argv[]) {
 
     auto query = new SPathHandler(*aut, *f, *sg); // Density-based Retention
 
-    // todo: replay su query: invece che copiare blindly, salvati lo stato delle finestre e riapplica la query sulla finestra
-    // TODO esperimento shuffling dataset per verificare la densità
+    // TODO: esperimento shuffling dataset per verificare la densità
 
     clock_t start = clock();
     while (fin >> s >> d >> l >> t) {
@@ -171,6 +178,7 @@ int main(int argc, char *argv[]) {
 
         int watermark_gap = current_time - time;
 
+        /* ADD */
         double c_sup = ceil(static_cast<double>(time) / static_cast<double>(slide)) * slide;
         double o_i = c_sup - size;
         unsigned int window_close;
@@ -206,12 +214,11 @@ int main(int argc, char *argv[]) {
             } while (o_i <= time);
 
             // the element is in an expired window
-            query->compute_missing_results(edge_number, s, d, l, time, window_close, windows_to_recover);
+            query->compute_missing_results(edge_number, s, d, l, time, window_close, windows_to_recover, windows_backup);
             if (!handle_ooo) continue;
 
         } else continue; // out-of-order element after watermark already expired
 
-        /* SCOPE */
         timed_edge *t_edge;
         sg_edge *new_sgt;
 
@@ -297,10 +304,19 @@ int main(int argc, char *argv[]) {
 
                 if (watermark!=0) { // persist current query state when window slides
                     if (to_evict.empty()) {
-                        f->deepCopyTreesAndVertexTreeMap(windows[i].t_open, windows[i].t_close);
-                        sg->deep_copy_adjacency_list(windows[i].t_open, windows[i].t_close);
+
+                        if (ooo_strategy == 0) {
+                            f->deepCopyTreesAndVertexTreeMap(windows[i].t_open, windows[i].t_close);
+                            sg->deep_copy_adjacency_list(windows[i].t_open, windows[i].t_close);
+                        } else {
+                            for (auto current = windows[i].first; current && current != windows[i].last->next; current = current->next) {
+                                windows_backup[windows[i].t_close].emplace_back(new sg_edge(*current->edge_pt));
+                            }
+                        }
+
                     } else { // no need of copying the same state multiple times since the slide is empty
-                        f->backup_map[std::make_pair(windows[i].t_open, windows[i].t_close)] = f->backup_map[std::make_pair(windows[to_evict[0]].t_open,windows[to_evict[0]].t_close)];
+                        if (ooo_strategy == 0) f->backup_map[std::make_pair(windows[i].t_open, windows[i].t_close)] = f->backup_map[std::make_pair(windows[to_evict[0]].t_open,windows[to_evict[0]].t_close)];
+                        else windows_backup[windows[i].t_close] = windows_backup[windows[to_evict[0]].t_close];
                     }
                 }
 
@@ -386,8 +402,14 @@ int main(int argc, char *argv[]) {
         if (watermark != 0) {
             for (unsigned int i = last_expired_window; i < windows.size(); i++) {
                 if (windows[i].t_close <= time - watermark) {
-                    f->deleteExpiredForest(windows[i].t_open, windows[i].t_close);
-                    sg->delete_expired_adj(windows[i].t_open, windows[i].t_close);
+
+                    if (ooo_strategy == 0) {
+                        f->deleteExpiredForest(windows[i].t_open, windows[i].t_close);
+                        sg->delete_expired_adj(windows[i].t_open, windows[i].t_close);
+                    } else {
+                        windows_backup.erase(windows[i].t_close);
+                    }
+
                     last_expired_window = i;
                 } else break;
             }
@@ -414,13 +436,14 @@ int main(int argc, char *argv[]) {
     cout << "execution time: " << time_used << endl;
 
     // Construct output file path
-    std::string retention = BACKWARD_RETENTION ? std::to_string(zscore) : "false";
-    std::string output_file = config.output_base_folder + "output_" + std::to_string(algorithm) + "_" +
-                              std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) +
-                              "_" + retention + ".txt";
-    std::string output_file_csv = config.output_base_folder + "output_" + std::to_string(algorithm) + "_" +
-                                  std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide)
-                                  + "_" + retention + ".csv";
+    std::string retention = BACKWARD_RETENTION ? std::to_string(zscore) : "0";
+    std::string algorithm_name = BACKWARD_RETENTION ? "4" : std::to_string(algorithm);
+    std::string output_file = config.output_base_folder + "output_a" + algorithm_name + "_S" +
+                              std::to_string(size) + "_s" + std::to_string(slide) + "_q" + std::to_string(query_type) +
+                              "_z" + retention + "_wm" + std::to_string(watermark) + ".txt";
+    std::string output_file_csv = config.output_base_folder + "output_a" + algorithm_name + "_S" +
+                              std::to_string(size) + "_s" + std::to_string(slide) + "_q" + std::to_string(query_type) +
+                              "_z" + retention + "_wm" + std::to_string(watermark) + ".csv";
 
     // Open file for writing
     std::ofstream outFile(output_file.c_str());
