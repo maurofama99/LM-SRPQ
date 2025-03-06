@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Compile main.cpp with -O3 optimization
-g++ -O3 -Wno-c++11-extensions -Wno-c++17-extensions -Wno-deprecated -o main code/main.cpp
+g++ -std=c++11 -O3 -Wno-c++11-extensions -Wno-c++17-extensions -Wno-deprecated -o main code/main.cpp
 
 # Check if compilation was successful
 if [ $? -ne 0 ]; then
@@ -15,5 +15,5 @@ config_dir="code/benchmark/config"
 # Execute the program with each configuration file in the directory and its subdirectories
 find "$config_dir" -type f -name "*.txt" | while read -r config_file; do
     echo "Running with configuration file: $config_file"
-    ./main "$config_file" 120000
+    ./main "$config_file" 0
 done

@@ -1,8 +1,0 @@
-algorithm=3
-input_data_path=code/dataset/so/so-stream_debug_5kk.txt
-output_base_folder=code/benchmark/results/
-size=60000
-slide=20000
-query_type=3
-labels=1,2
-zscore=0.65

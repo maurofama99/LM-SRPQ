@@ -151,6 +151,9 @@ int main(int argc, char *argv[]) {
 
     auto query = new SPathHandler(*aut, *f, *sg); // Density-based Retention
 
+    // todo: replay su query: invece che copiare blindly, salvati lo stato delle finestre e riapplica la query sulla finestra
+    // TODO esperimento shuffling dataset per verificare la densità
+
     clock_t start = clock();
     while (fin >> s >> d >> l >> t) {
         edge_number++;
@@ -315,8 +318,8 @@ int main(int argc, char *argv[]) {
 
         /* EVICT */
         if (evict) {
-            std::unordered_set<unsigned int> deleted_vertexes;
             vector<edge_info> deleted_edges;
+            std::vector<pair<unsigned, unsigned> > candidate_for_deletion;
             timed_edge *evict_start_point = windows[to_evict[0]].first;
             timed_edge *evict_end_point = windows[to_evict.back() + 1].first;
 
@@ -342,17 +345,16 @@ int main(int argc, char *argv[]) {
                     sg->shift_timed_edge(cur_edge->time_pos, windows[target_window_index].first);
                 } else {
                     if (algorithm == 3) {
-                        deleted_vertexes.insert(cur_edge->s); // schedule for further RQP Forest deletion
-                        deleted_vertexes.insert(cur_edge->d);
+                        // check for parent switch before final deletion
+                        candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d);
+                        // possible optimization: if the candidate parent is in the slide that we are evicting, avoid parent changing
                     }
-
-                    if (algorithm == 1 || algorithm == 2)
-                        deleted_edges.emplace_back(cur_edge->s, cur_edge->d, cur_edge->timestamp, cur_edge->label, cur_edge->expiration_time, -1);
-
+                    else if (algorithm == 1 || algorithm == 2) {
+                        deleted_edges.emplace_back(cur_edge->s, cur_edge->d, cur_edge->timestamp, cur_edge->label, cur_edge->expiration_time, -1); // schedule for expiration from RPQ Forest
+                    }
                     sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label); // delete from adjacency list
                     sg->delete_timed_edge(current); // delete from window state store
                 }
-
                 current = next;
             }
 
@@ -374,8 +376,8 @@ int main(int argc, char *argv[]) {
                 f2->expire(time, deleted_edges);
                 f2->dynamic_lm_select(candidate_rate, benefit_threshold);
             } else if (algorithm == 3) {
-                f->expire(deleted_vertexes);
-                deleted_vertexes.clear();
+                f->expire(candidate_for_deletion);
+                candidate_for_deletion.clear();
             }
 
             evict = false;

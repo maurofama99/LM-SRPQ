@@ -98,29 +98,20 @@ public:
                 while (!Q.empty()) {
                     auto element = Q.front();
                     Q.pop(); // (⟨vi,si⟩, <vj,sj>, edge_id)
-                    if (!forest.findNodeInTree(tree.rootVertex, element.vd, element.sd)) {
-                        // if tree does not contain <vj,sj>
+                    if (auto vj_sj_node = forest.findNodeInTree(tree.rootVertex, element.vd, element.sd); !vj_sj_node) { // if tree does not contain <vj,sj>
                         // add <vj,sj> into tree with parent vi_si
-                        if (!forest.addChildToParent(tree.rootVertex, element.vb, element.sb, element.edge_id,
-                                                     element.vd, element.sd)) continue;
-                        // } else if (forest.findNodeInTree(tree.rootVertex, element.vb, element.sb) && element.vb == edge->s && element.vd == edge->d) { // if tree contains <vi,si> update subtree starting from <vi,si> to respect LILO
-                        //  forest.changeParent(tree.rootVertex, element.vd, element.sd, element.vb, element.sb);
-                    } else // TODO Implement FIFO parent update
-                        continue;
-
+                        if (!forest.addChildToParent(tree.rootVertex, element.vb, element.sb, element.edge_id, element.vd, element.sd)) continue;
+                    } else { // if tree already contains <vj,sj>
+                        // add vi_si to the list of candidate parents of <vj,sj>
+                        if (auto candidate_parent = forest.findNodeInTree(tree.rootVertex, element.vb, element.sb)) vj_sj_node->candidate_parents.emplace_back(candidate_parent);
+                    }
+                    // update result set
                     if (fsa.isFinalState(element.sd)) {
-                        // update result set
                         // check if in the result set we already have a path from root to element.vd
                         if (result_set[tree.rootVertex].insert((result){element.vd, edge->timestamp}).second) {
                             results_count++;
                         }
                     }
-                    /*
-                    else if (forest.findNodeInTree(tree.rootVertex, element.vb, element.sb) && (element.vb == edge->s && element.vd == edge->d)) { // if tree contains <vi,si>
-                        // update the parent of the node to respect FIFO
-                        forest.changeParent(tree.rootVertex, element.vd, element.sd, element.vb, element.sb);
-                    } else continue;
-                    */
                     // for all vertex <vq,sq> where exists a successor vertex in the snapshot graph where the label the same as the transition in the automaton from the state sj to state sq, push into Q
                     for (auto successors: sg.get_all_suc(element.vd)) {
                         // if the transition exits in the automaton from sj to sq
