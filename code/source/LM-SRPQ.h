@@ -29,6 +29,7 @@ public:
 	map<unsigned int, lm_info_index*> v2l_index; // Maps each state to a lm_info_index, reverse index that maps a graph vertex to the LM trees that contains it.
 	unordered_map<unsigned long long, unsigned int> result_pairs;
 	unordered_set<unsigned long long> landmarks; // set of landmarks, vertex ID and states are merged.
+    unsigned int distinct_results = 0;
 
 	LM_forest(streaming_graph* g_, automaton* automaton)
 	{
@@ -54,6 +55,18 @@ public:
 		aut_scores.clear();
 	}
 
+	void export_result(const string& file_name)
+	{
+		ofstream fout(file_name);
+		for (auto & iter : result_pairs)
+		{
+			long long src = iter.first >> 32;
+			long long dst = iter.first & 0xFFFFFFFF;
+			fout << src << "," << dst << "," << iter.second << endl;
+		}
+		fout.close();
+	}
+
 	void update_result(unordered_map<unsigned int, unsigned int>& updated_nodes, unsigned int root_ID, unsigned int lm_time = MAX_INT)
 	// first of updated nodes are vertex ID, second are path timestamps, root_ID can reach these vertices with a qualified regular path.
 		// when lm time is set, updated_nodes store path timestamps from a landmark to the vertices, lm time is the path timestamp from root to the landmark, we need to first merge these two parts and then update the result set. 
@@ -67,8 +80,10 @@ public:
 			unsigned long long result_pair = (((unsigned long long)root_ID << 32) | dst);
 			if (result_pairs.find(result_pair) != result_pairs.end())
 				result_pairs[result_pair] = max(result_pairs[result_pair], time);
-			else
+			else {
 				result_pairs[result_pair] = time;
+				distinct_results++;
+            }
 		}
 	}
 
@@ -83,8 +98,10 @@ public:
 			unsigned long long result_pair = (((unsigned long long)root_ID << 32) | dst);
 			if (result_pairs.find(result_pair) != result_pairs.end())
 				result_pairs[result_pair] = max(result_pairs[result_pair], time);
-			else
+			else {
 				result_pairs[result_pair] = time;
+				distinct_results++;
+            }
 		}
 	}
 
@@ -1442,10 +1459,10 @@ public:
 		unsigned int um_size = sizeof(unordered_map<unsigned int, unsigned int>); // size of statistics in a map, which does not change with the key-value type, usually is 56, but may change with the system.
 		unsigned int m_size = sizeof(map<unsigned int, unsigned int>); // size of pointers and statistics in a map, which does not change with the key-value type, usually is 48, but may change with the system.
 
-		cout << "result pair size: " << result_pairs.size() << ", memory: " << ((double)(um_size + result_pairs.size() * 24 + result_pairs.bucket_count() * 8) / (1024 * 1024)) << endl;   // number of result vertex pairs, and the memory used to store these results.
+		//cout << "result pair size: " << result_pairs.size() << ", memory: " << ((double)(um_size + result_pairs.size() * 24 + result_pairs.bucket_count() * 8) / (1024 * 1024)) << endl;   // number of result vertex pairs, and the memory used to store these results.
 		fout << "result pair size: " << result_pairs.size() << ", memory: " << ((double)(um_size + result_pairs.size() * 24 + result_pairs.bucket_count() * 8) / (1024 * 1024)) << endl;
 
-		cout<<"landmark number "<<landmarks.size()<<" tree number "<<forests.size()<<" snapshot graph vertice number "<<g->get_vertice_num()<<endl; 
+		//cout<<"landmark number "<<landmarks.size()<<" tree number "<<forests.size()<<" snapshot graph vertice number "<<g->get_vertice_num()<<endl;
 		fout<<"landmark number "<<landmarks.size()<<" tree number "<<forests.size()<<" snapshot graph vertice number "<<g->get_vertice_num()<<endl;
 		
 		unsigned int tree_size = 16 + m_size * 2 + us_size; // size of statistics and pointers in a tree
@@ -1480,7 +1497,7 @@ public:
 		}
 		lm_set_memory = ((lm_set_memory) / (1024 * 1024));
 		time_info_memory = (time_info_memory / (1024 * 1024));
-		cout << "memory usage of time info in lm trees: " << time_info_memory << endl;
+		//cout << "memory usage of time info in lm trees: " << time_info_memory << endl;
 		fout << "memory usage of time info in lm trees: " << time_info_memory << endl;
 
 		// calculate memory of the reverse index from node to tree.
@@ -1504,7 +1521,7 @@ public:
 		}
 		lm_node_memory += lm_node_num * 24; // memory of the reverse index units (tree_info)
 		lm_node_memory = (lm_node_memory / (1024 * 1024));
-		cout << "node number in LM tree: " << lm_node_num << ", memory: " << lm_node_memory << endl;
+		//cout << "node number in LM tree: " << lm_node_num << ", memory: " << lm_node_memory << endl;
 		fout << "node number in LM tree: " << lm_node_num << ", memory: " << lm_node_memory << endl;
 
 		// similar as above, but in normal trees.
@@ -1527,11 +1544,11 @@ public:
 		}
 		tree_node_memory += tree_node_num * 24;
 		tree_node_memory = (tree_node_memory / (1024 * 1024));
-		cout << "node number in normal tree: " << tree_node_num << ", memory: " << tree_node_memory << endl;
-		cout << "total memory besides result set: " << (tree_memory + global_lm_memory + lm_set_memory + time_info_memory + lm_node_memory + tree_node_memory) << endl;
+		//cout << "node number in normal tree: " << tree_node_num << ", memory: " << tree_node_memory << endl;
+		//cout << "total memory besides result set: " << (tree_memory + global_lm_memory + lm_set_memory + time_info_memory + lm_node_memory + tree_node_memory) << endl;
 		fout << "node number in normal tree: " << tree_node_num << ", memory: " << tree_node_memory << endl;
 		fout << "total memory besides result set: " << (tree_memory + global_lm_memory + lm_set_memory + time_info_memory + lm_node_memory + tree_node_memory) << endl;
-		cout << endl;
+		//cout << endl;
 		fout << endl;
 	}
 
@@ -1588,7 +1605,7 @@ public:
 
 
 	void expire_backtrack(unsigned int v, unsigned int state, unsigned int expired_time, vector<unsigned long long>& deleted_results, unordered_set<unsigned long long>& visited)
-		// this function performs a backward search from a landmark £¨v, state). Deleted_results are the nodes where the path from landmark to them has expired. entry of these nodes in the time info map of its precursor LM trees
+		// this function performs a backward search from a landmark ï¿½ï¿½v, state). Deleted_results are the nodes where the path from landmark to them has expired. entry of these nodes in the time info map of its precursor LM trees
 		// may also expire, we need to check them in the search, visited records the visited LM trees, in case of repeated check. expired_time is the tail of the silding window, entries with timestamp smaller than it expire.
 	{
 		map<unsigned int, lm_info_index*>::iterator iter = v2l_index.find(state);
@@ -1723,8 +1740,8 @@ public:
 
 	void expire(int current_time) //given current time, carry out an expiration in the forest.
 	{
-		int expire_time = current_time - g->window_size;
-		results_update(expire_time); // delete expired results.
+		int expire_time = current_time - g->window_size + g->window_slide;
+		// results_update(expire_time); // delete expired results.
 		vector<edge_info> deleted_edges;
 		g->expire(current_time, deleted_edges); // delete expired edges in the graph
 		unordered_set<unsigned long long> visited_pair;

@@ -83,6 +83,7 @@ public:
 	unordered_map<unsigned int, neighbor_list> g; // successor list
 	unordered_map<unsigned int, neighbor_list> rg; // precursor list
 	int window_size;  // length of the window, defined in time units.
+	int window_slide; // the slide of the window, defined in time units.
 	int edge_num; // number of edges in the window
 	timed_edge* time_list_head; // head of the time sequence list;
 	timed_edge* time_list_tail;// tial of the time sequence list
@@ -247,7 +248,7 @@ public:
 		while (time_list_head)
 		{
 			sg_edge* cur = time_list_head->edge_pt;
-			if (cur->timestamp + window_size >= timestamp) // The later edges are still in the sliding window, and we can stop the expiration.
+			if (cur->timestamp + window_size - window_slide >= timestamp) // The later edges are still in the sliding window, and we can stop the expiration.
 				break;
 			expire_edge(cur);
 			deleted_edges.push_back(edge_info(cur->s, cur->d, cur->timestamp, cur->label)); // we record the information of expired edges. This information will be used to find expired tree nodes in S-PATH or LM-SRPQ.

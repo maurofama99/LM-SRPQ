@@ -145,6 +145,7 @@ int main(int argc, char* argv[])
 	
 	unsigned int w = 3600*24*days;
 	streaming_graph* sg = new streaming_graph(w);
+	sg->window_slide = 3600*hour;
 	unsigned int s, d, l;
 	unsigned long long t;
 	string prefix = "./"; // path of the out put files
@@ -176,7 +177,7 @@ int main(int argc, char* argv[])
 		{
 			slice++;
 			f1->expire(time);
-			cout << slice << " slices have been inserted" << endl;
+			// cout << slice << " slices have been inserted" << endl;
 			if (slice>0&&slice%(days*24/hour) == 0)
 				f1->count(fout1); // a checkpoint
 		}
@@ -226,7 +227,7 @@ if(algorithm==2){
 			f2->expire(time);
 			f2->dynamic_lm_select(candidate_rate, benefit_threshold);
 
-			cout << slice << " slices have been inserted" << endl;
+			// cout << slice << " slices have been inserted, time: " << time << endl;
 			if (slice>0&&slice%(days*24/hour) == 0)
 				f2->count(fout1);
 		}
@@ -236,14 +237,17 @@ if(algorithm==2){
 	unsigned int time_used = (double)(finish - start) / CLOCKS_PER_SEC;
 	cout << "LM-SRPQ time used " << time_used << endl;
 	cout << "LM-SRPQ speed " << (double)edge_number / time_used << endl;
-	fout3<< " LM-SRPQ time used " << time_used << endl;
+	fout3<< "LM-SRPQ time used " << time_used << endl;
 	fout3 << "LM-SRPQ speed " << (double)edge_number / time_used << endl;
+    cout << "resulting paths: " << f2->distinct_results << "\n\n";
 	
 	sort(insertion_time.begin(), insertion_time.end(), compare);
 	if(insertion_time.size()>(edge_number/100))
 		insertion_time.erase(insertion_time.begin()+(edge_number/100), insertion_time.end());
 	for(int i=0;i<insertion_time.size();i++)
 		fout2<<insertion_time[i]<<endl;
+
+	f2->export_result(prefix+"LM-results.csv");
 		
 	insertion_time.clear();
 	fout1.close();

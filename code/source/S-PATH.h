@@ -7,7 +7,7 @@
 #include<string>
 #include <queue>
 #include<stack>
-#include<stdlib.h> 
+#include<cstdlib>
 #include<algorithm>
 #include "forest_struct.h"
 #include "automaton.h"
@@ -327,7 +327,7 @@ public:
 		// the memory of an unordered_map is computed as um_size + bucket_count()*8 + KV_number * (KV_size + 8). It is a hash table where each bucket is a pointer, pointing to a KV list. Each KV is associated with a pointer
 		// pointing to next KV in the list.
 		// the memory of a map is computed as m_size + KV_number * (KV_size + 24). It is a binary search tree where each KV is associated with 3 pointer, 2 for child and 1 for parent.
-		cout << "result pair size: " << result_pairs.size() << ", memory: " << ((double)(result_pairs.size() * 24 + result_pairs.bucket_count() * 8 + um_size) / (1024 * 1024)) << endl;  // number of result vertex pairs, and the memory used to store these results.
+		// cout << "result pair size: " << result_pairs.size() << ", memory: " << ((double)(result_pairs.size() * 24 + result_pairs.bucket_count() * 8 + um_size) / (1024 * 1024)) << endl;  // number of result vertex pairs, and the memory used to store these results.
 		fout << "result pair size: " << result_pairs.size() << ", memory: " << ((double)(result_pairs.size() * 24 + result_pairs.bucket_count() * 8 + um_size) / (1024 * 1024)) << endl;
 		unsigned int tree_size = m_size + 16; // For S-PATH, we only consider the memory of node_map, root pointer and integer node_num; 
 		double tree_memory = ((double)(um_size + forests.bucket_count() * 8 + forests.size() * (24+tree_size)) / (1024 * 1024)); //  forests has KV size 16, 
@@ -361,11 +361,11 @@ public:
 		}
 		tree_node_memory += tree_node_num * 24;
 		tree_node_memory = (tree_node_memory / (1024 * 1024));
-		cout << "total node number in forest: " << tree_node_num << ", memory: " << tree_node_memory << endl; // the total number of nodes in the forest
-		cout << "total memory besides result set: " << (tree_memory + tree_node_memory) << endl; // total memory usage
+		//cout << "total node number in forest: " << tree_node_num << ", memory: " << tree_node_memory << endl; // the total number of nodes in the forest
+		//cout << "total memory besides result set: " << (tree_memory + tree_node_memory) << endl; // total memory usage
 		fout << "total node number in forest: " << tree_node_num << ", memory: " << tree_node_memory << endl;
 		fout << "total memory besides result set: " << (tree_memory + tree_node_memory) << endl;
-		cout << endl;
+		//cout << endl;
 		fout << endl;
 
 	}
