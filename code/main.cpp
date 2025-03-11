@@ -23,6 +23,7 @@ typedef struct Config {
     long long query_type;
     std::vector<long long> labels;
     double zscore;
+    long long reachability_threshold;
     long long watermark;
     long long ooo_strategy;
 } config;
@@ -65,6 +66,7 @@ config readConfig(const std::string &filename) {
     config.zscore = std::stod(configMap["zscore"]);
     config.watermark = std::stoi(configMap["watermark"]);
     config.ooo_strategy = std::stoi(configMap["ooo_strategy"]);
+    config.reachability_threshold = std::stoi(configMap["reachability_threshold"]);
 
     return config;
 }
@@ -99,7 +101,9 @@ int main(int argc, char *argv[]) {
     long long slide = config.slide;
     long long query_type = config.query_type;
     double zscore = config.zscore;
+    long long reachability_threshold = config.reachability_threshold;
     bool BACKWARD_RETENTION = zscore != 0;
+    bool REACHABLE_EXTENSION = reachability_threshold != 0;
 
     long long watermark = config.watermark;
     long long ooo_strategy = config.ooo_strategy; // 0: Copy State, 1: Window Replay
@@ -124,7 +128,7 @@ int main(int argc, char *argv[]) {
     auto *aut = new FiniteStateAutomaton();
     vector<long long> scores = setup_automaton(query_type, aut, config.labels);
     auto *f = new Forest();
-    auto *sg = new streaming_graph(zscore);
+    auto *sg = new streaming_graph();
 
     vector<window> windows;
 
@@ -354,7 +358,8 @@ int main(int argc, char *argv[]) {
                 auto cur_edge = current->edge_pt;
                 auto next = current->next;
 
-                if (sg->get_zscore(cur_edge->s) > sg->zscore_threshold && BACKWARD_RETENTION) {
+                if (    (BACKWARD_RETENTION && sg->get_zscore(cur_edge->s) > zscore)
+                    ||  (REACHABLE_EXTENSION && sg->get_zscore(cur_edge->s) > reachability_threshold && sg->dijkstra_with_threshold(cur_edge->s, reachability_threshold, evict_end_point->edge_pt->timestamp))) {
                     sg->saved_edges++;
                     auto shift = 1 + to_evict.back() + static_cast<size_t>(std::ceil(sg->get_zscore(cur_edge->s)));
                     auto target_window_index = shift < last_window_index ? shift : last_window_index;

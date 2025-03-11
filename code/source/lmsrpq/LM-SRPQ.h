@@ -8,7 +8,10 @@
 #include <chrono>
 #include "forest_struct.h"
 #include "../fsa.h"
+
 #define merge_long_long(s, d) (((unsigned long long)s<<32)|d)
+#define max_custom(x, y) (x>y?x:y)
+
 using namespace std;
 
 
@@ -76,7 +79,7 @@ public:
 				continue;
 			unsigned long long result_pair = (((unsigned long long)root_ID << 32) | dst);
 			if (result_pairs.find(result_pair) != result_pairs.end())
-				result_pairs[result_pair] = max(result_pairs[result_pair], time);
+				result_pairs[result_pair] = max_custom(result_pairs[result_pair], time);
 			else {
 				result_pairs[result_pair] = time;
 				distinct_results++;
@@ -95,7 +98,7 @@ public:
 				continue;
 			unsigned long long result_pair = (((unsigned long long)root_ID << 32) | dst);
 			if (result_pairs.find(result_pair) != result_pairs.end())
-				result_pairs[result_pair] = max(result_pairs[result_pair], time);
+				result_pairs[result_pair] = max_custom(result_pairs[result_pair], time);
 			else {
 				result_pairs[result_pair] = time;
 				distinct_results++;
@@ -384,7 +387,7 @@ public:
 					long long v = iter->first;
 					long long time = min(lm_time, iter->second);
 					if (updated_results.find(v) != updated_results.end())
-						updated_results[v] = max(updated_results[v], time);
+						updated_results[v] = max_custom(updated_results[v], time);
 					else
 						updated_results[v] = time;
 				}
@@ -405,7 +408,7 @@ public:
 			unsigned long long tmp_info = merge_long_long(tmp->node_ID, tmp->state);
 			if (aut->isFinalState(tmp->state)) {
 				if (updated_results.find(tmp->node_ID) != updated_results.end())
-					updated_results[tmp->node_ID] = max(updated_results[tmp->node_ID], tmp->timestamp); // todo: use expiration time instead of timestamp
+					updated_results[tmp->node_ID] = max_custom(updated_results[tmp->node_ID], tmp->timestamp); // todo: use expiration time instead of timestamp
 				else
 					updated_results[tmp->node_ID] = tmp->timestamp;
 			}
@@ -729,7 +732,7 @@ public:
 					if (tree_pt->time_info.find(state) == tree_pt->time_info.end())
 						tree_pt->time_info[state] = new time_info_index;
 					for (auto info_iter = iter.second->index.begin(); info_iter != iter.second->index.end(); info_iter++)
-						tree_pt->time_info[state]->index[info_iter->first] = max(tree_pt->time_info[state]->index[info_iter->first], min(info_iter->second, lm_time));
+						tree_pt->time_info[state]->index[info_iter->first] = max_custom(tree_pt->time_info[state]->index[info_iter->first], min(info_iter->second, lm_time));
 
 				}
 			}

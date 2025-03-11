@@ -5,12 +5,11 @@
 #include<unordered_map>
 #include<unordered_set>
 #include <queue>
-#include<assert.h>
+#include<cassert>
 #define um_shrink_threshold 2
 #define merge_long_long(s, d) (((unsigned long long)s<<32)|d)
 using namespace std;
 #define min(x, y) (x<y?x:y)
-#define max(x, y) (x>y?x:y)
 #define MAX_INT 0x7FFFFFFF
 
 

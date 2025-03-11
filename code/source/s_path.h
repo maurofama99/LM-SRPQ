@@ -142,7 +142,7 @@ public:
         // retrieve the forest associated to the windows to which the element belongs, add the ooo element and compute results
         for (auto window: windows) {
 
-            auto backupsg = new streaming_graph(-1);
+            auto backupsg = new streaming_graph();
             auto backupforest = new Forest();
             vector<sg_edge *> to_process;
 

@@ -11,7 +11,10 @@
 #include "forest_struct.h"
 #include "../fsa.h"
 #include "../streaming_graph.h"
+
 #define merge_long_long(s, d) (((unsigned long long)s<<32)|d)
+#define max_custom(x, y) (x>y?x:y)
+
 using namespace std;
 
 // code for the S-PATH algorithm
@@ -78,7 +81,7 @@ public:
 				continue;
 			unsigned long long result_pair = static_cast<unsigned long long>(root_ID) << 32 | dst;
 			if (result_pairs.find(result_pair) != result_pairs.end())
-				result_pairs[result_pair] = max(result_pairs[result_pair], time); // if the vertex pair exists, update its timestamp
+				result_pairs[result_pair] = max_custom(result_pairs[result_pair], time); // if the vertex pair exists, update its timestamp
 			else {
 				result_pairs[result_pair] = time;  // else add the vertex pair.
 				distinct_results++;
@@ -128,7 +131,7 @@ public:
 			unsigned long long tmp_info = merge_long_long(tmp->node_ID, tmp->state);
 			if (aut->isFinalState(tmp->state)) { // if this is a final state, we need to update the result set, we record it first and at last carry out the update together
 				if (updated_results.find(tmp->node_ID) != updated_results.end())
-					updated_results[tmp->node_ID] = max(updated_results[tmp->node_ID], tmp->edge_expiration);
+					updated_results[tmp->node_ID] = max_custom(updated_results[tmp->node_ID], tmp->edge_expiration);
 				else {
 					updated_results[tmp->node_ID] = tmp->edge_expiration;
 				}
@@ -408,7 +411,7 @@ public:
 		tree_node_memory = tree_node_memory / (1024 * 1024);
 		memory_count++;
 		memory_current_avg = ((memory_current_avg * (memory_count-1)) + tree_node_memory) / memory_count;
-		peek_memory = max(peek_memory, tree_node_memory);
+		peek_memory = max_custom(peek_memory, tree_node_memory);
 		cout << "total node number in forest: " << tree_node_num << ", memory: " << tree_node_memory << endl; // the total number of nodes in the forest
 		cout << "total memory besides result set: " << (tree_memory + tree_node_memory) << endl; // total memory usage
 		fout << "total node number in forest: " << tree_node_num << ", memory: " << tree_node_memory << endl;

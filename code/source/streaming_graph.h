@@ -3,8 +3,9 @@
 #include <map>
 #include <unordered_map>
 #include <set>
+#include <queue>
+#include <limits>
 
-#define max(x, y) (x>y?x:y)
 using namespace std;
 
 // this streaming graph class suppose that there may be duplicate edges in the streaming graph. It means the same edge (s, d, label) may appear multiple times in the stream.
@@ -84,12 +85,10 @@ public:
     double mean = 0;
     double m2 = 0;
     unordered_map<long long, long long> density;
-    double zscore_threshold;
     long long slide_threshold = 10;
     long long saved_edges = 0;
 
-    explicit streaming_graph(const double zscore) {
-        zscore_threshold = zscore;
+    explicit streaming_graph() {
         edge_num = 0;
         time_list_head = nullptr;
         time_list_tail = nullptr;
@@ -280,6 +279,56 @@ public:
             degree_map[edge->label]++;
         }
         return degree_map;
+    }
+
+    /**
+     * Find the vertexes at distance lower than the threshold
+     * from start vertex using Dijkstra's shortest path algorithm,
+     * checking the timestamp of the edges to find a connection with a recent window.
+     **/
+    bool dijkstra_with_threshold(long long start, long long threshold, long long min_timestamp) {
+        std::unordered_map<long long, long long> distances;
+        std::unordered_map<long long, long long> previous;
+        std::unordered_map<long long, bool> has_valid_timestamp;
+        std::priority_queue<std::pair<long long, long long>, std::vector<std::pair<long long, long long>>, std::greater<>> pq;
+
+        for (const auto& [vertex, _] : adjacency_list) {
+            distances[vertex] = std::numeric_limits<long long>::max();
+            previous[vertex] = -1;
+            has_valid_timestamp[vertex] = false;
+        }
+
+        distances[start] = 0;
+        pq.emplace(0, start);
+
+        while (!pq.empty()) {
+            long long current_distance = pq.top().first;
+            long long current_vertex = pq.top().second;
+            pq.pop();
+
+            if (current_distance > distances[current_vertex]) {
+                continue;
+            }
+
+            for (const auto& [neighbor, edge] : adjacency_list[current_vertex]) {
+                bool valid_timestamp = has_valid_timestamp[current_vertex] || edge->timestamp > min_timestamp;
+                if (long long distance = current_distance + 1; distance < distances[neighbor] && distance <= threshold) {
+                    distances[neighbor] = distance;
+                    previous[neighbor] = current_vertex;
+                    has_valid_timestamp[neighbor] = valid_timestamp;
+                    pq.emplace(distance, neighbor);
+                }
+            }
+        }
+
+        std::vector<long long> result;
+        for (const auto& [vertex, distance] : distances) {
+            if (distance <= threshold && has_valid_timestamp[vertex]) {
+                result.push_back(vertex);
+            }
+        }
+
+        return !result.empty(); // Return true if there are any valid vertexes
     }
 
     double get_zscore(long long vertex) {
