@@ -133,7 +133,8 @@ int main(int argc, char *argv[]) {
     vector<window> windows;
 
     // Buffer to store evicted windows eventually needed for out-of-order elements computation
-    unordered_map<long long, vector<sg_edge*>> windows_backup; // key: window opening time, value: vector of elements belonging to the window.
+    unordered_map<long long, vector<sg_edge *> > windows_backup;
+    // key: window opening time, value: vector of elements belonging to the window.
 
     long long s, d, l;
     long long t;
@@ -188,7 +189,8 @@ int main(int argc, char *argv[]) {
         long long window_close;
 
         handle_ooo = false;
-        if (time >= current_time) { // in-order element
+        if (time >= current_time) {
+            // in-order element
             if (time == current_time) time++;
             current_time = time;
             do {
@@ -199,8 +201,8 @@ int main(int argc, char *argv[]) {
                 }
                 o_i += slide;
             } while (o_i <= time);
-
-        } else if (watermark_gap > 0 && watermark_gap <= watermark) { // out-of-order element before watermark expiration
+        } else if (watermark_gap > 0 && watermark_gap <= watermark) {
+            // out-of-order element before watermark expiration
             std::vector<std::pair<long long, long long> > windows_to_recover;
             do {
                 window_close = o_i + size;
@@ -218,9 +220,9 @@ int main(int argc, char *argv[]) {
             } while (o_i <= time);
 
             // the element is in an expired window
-            query->compute_missing_results(edge_number, s, d, l, time, window_close, windows_to_recover, windows_backup);
+            query->compute_missing_results(edge_number, s, d, l, time, window_close, windows_to_recover,
+                                           windows_backup);
             if (!handle_ooo) continue;
-
         } else continue; // out-of-order element after watermark already expired
 
         timed_edge *t_edge;
@@ -243,12 +245,13 @@ int main(int argc, char *argv[]) {
                 exit(1);
             }
 
-            if (existing_edge->timestamp > time) continue;
+            if (watermark != 0 && existing_edge->timestamp > time) continue;
 
             // adjust window boundaries if needed
             for (size_t i = window_offset; i < windows.size(); i++) {
                 if (windows[i].first == existing_edge->time_pos) {
-                    if (windows[i].first != windows[i].last) { // if the window has more than one element
+                    if (windows[i].first != windows[i].last) {
+                        // if the window has more than one element
                         if (existing_edge->time_pos->next) windows[i].first = existing_edge->time_pos->next;
                         else {
                             cerr << "ERROR: Time position not found." << endl;
@@ -260,7 +263,8 @@ int main(int argc, char *argv[]) {
                     }
                 }
                 if (windows[i].last == existing_edge->time_pos) {
-                    if (windows[i].first != windows[i].last) { // if the window has more than one element
+                    if (windows[i].first != windows[i].last) {
+                        // if the window has more than one element
                         if (existing_edge->time_pos->prev) windows[i].last = existing_edge->time_pos->prev;
                         else {
                             cerr << "ERROR: Time position not found." << endl;
@@ -283,7 +287,7 @@ int main(int argc, char *argv[]) {
         // add edge to time list
         t_edge = new timed_edge(new_sgt);
         if (handle_ooo) sg->add_timed_edge_inorder(t_edge); // ooo: add element in order into already existing window
-        else sg->add_timed_edge(t_edge);                    // io: append element to last window
+        else sg->add_timed_edge(t_edge); // io: append element to last window
 
         // add edge to window and check for window eviction
         for (size_t i = window_offset; i < windows.size(); i++) {
@@ -296,8 +300,7 @@ int main(int argc, char *argv[]) {
                     }
                     if (!windows[i].first) windows[i].last = t_edge;
                     windows[i].first = t_edge;
-                }
-                else if (!windows[i].last || time > windows[i].last->edge_pt->timestamp) {
+                } else if (!windows[i].last || time > windows[i].last->edge_pt->timestamp) {
                     if (handle_ooo && windows[i].last->next != t_edge) {
                         cerr << "ERROR: Window last is not the next element." << endl;
                         exit(1);
@@ -305,21 +308,24 @@ int main(int argc, char *argv[]) {
                     windows[i].last = t_edge;
                 }
             } else if (time >= windows[i].t_close) {
-
-                if (watermark!=0) { // persist current query state when window slides
+                if (watermark != 0) {
+                    // persist current query state when window slides
                     if (to_evict.empty()) {
-
                         if (ooo_strategy == 0) {
                             f->deepCopyTreesAndVertexTreeMap(windows[i].t_open, windows[i].t_close);
                             sg->deep_copy_adjacency_list(windows[i].t_open, windows[i].t_close);
                         } else {
-                            for (auto current = windows[i].first; current && current != windows[i].last->next; current = current->next) {
+                            for (auto current = windows[i].first; current && current != windows[i].last->next;
+                                 current = current->next) {
                                 windows_backup[windows[i].t_close].emplace_back(new sg_edge(*current->edge_pt));
                             }
                         }
-
-                    } else { // no need of copying the same state multiple times since the slide is empty
-                        if (ooo_strategy == 0) f->backup_map[std::make_pair(windows[i].t_open, windows[i].t_close)] = f->backup_map[std::make_pair(windows[to_evict[0]].t_open,windows[to_evict[0]].t_close)];
+                    } else {
+                        // no need of copying the same state multiple times since the slide is empty
+                        if (ooo_strategy == 0)
+                            f->backup_map[std::make_pair(windows[i].t_open, windows[i].t_close)] = f->
+                                    backup_map[std::make_pair(windows[to_evict[0]].t_open,
+                                                              windows[to_evict[0]].t_close)];
                         else windows_backup[windows[i].t_close] = windows_backup[windows[to_evict[0]].t_close];
                     }
                 }
@@ -358,20 +364,20 @@ int main(int argc, char *argv[]) {
                 auto cur_edge = current->edge_pt;
                 auto next = current->next;
 
-                if (    (BACKWARD_RETENTION && sg->get_zscore(cur_edge->s) > zscore)
-                    ||  (REACHABLE_EXTENSION && sg->get_zscore(cur_edge->s) > reachability_threshold && sg->dijkstra_with_threshold(cur_edge->s, reachability_threshold, evict_end_point->edge_pt->timestamp))) {
+                if (   (BACKWARD_RETENTION && !REACHABLE_EXTENSION && sg->get_zscore(cur_edge->s) > zscore)
+                    || (BACKWARD_RETENTION && REACHABLE_EXTENSION && sg->get_zscore(cur_edge->s) > zscore && sg->dfs_with_threshold(cur_edge->s, reachability_threshold, evict_end_point->edge_pt->timestamp))) {
                     sg->saved_edges++;
-                    auto shift = 1 + to_evict.back() + static_cast<size_t>(std::ceil(sg->get_zscore(cur_edge->s)));
-                    auto target_window_index = shift < last_window_index ? shift : last_window_index;
+                    auto target_window_index = last_window_index;
                     sg->shift_timed_edge(cur_edge->time_pos, windows[target_window_index].first);
                 } else {
                     if (algorithm == 3) {
                         // check for parent switch before final deletion
                         candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d);
                         // possible optimization: if the candidate parent is in the slide that we are evicting, avoid parent changing
-                    }
-                    else if (algorithm == 1 || algorithm == 2) {
-                        deleted_edges.emplace_back(cur_edge->s, cur_edge->d, cur_edge->timestamp, cur_edge->label, cur_edge->expiration_time, -1); // schedule for expiration from RPQ Forest
+                    } else if (algorithm == 1 || algorithm == 2) {
+                        deleted_edges.emplace_back(cur_edge->s, cur_edge->d, cur_edge->timestamp, cur_edge->label,
+                                                   cur_edge->expiration_time,
+                                                   -1); // schedule for expiration from RPQ Forest
                     }
                     sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label); // delete from adjacency list
                     sg->delete_timed_edge(current); // delete from window state store
@@ -400,14 +406,12 @@ int main(int argc, char *argv[]) {
                 f->expire(candidate_for_deletion);
                 candidate_for_deletion.clear();
             }
-
             evict = false;
         }
 
         if (watermark != 0) {
             for (long long i = last_expired_window; i < windows.size(); i++) {
                 if (windows[i].t_close <= time - watermark) {
-
                     if (ooo_strategy == 0) {
                         f->deleteExpiredForest(windows[i].t_open, windows[i].t_close);
                         sg->delete_expired_adj(windows[i].t_open, windows[i].t_close);
@@ -423,8 +427,8 @@ int main(int argc, char *argv[]) {
         if (time >= checkpoint * 3600) {
             checkpoint += checkpoint;
 
-            printf("processed edges: %u\n", edge_number);
-            printf("saved edges: %d\n", sg->saved_edges);
+            printf("processed edges: %lld\n", edge_number);
+            printf("saved edges: %lld\n", sg->saved_edges);
             printf("avg degree: %f\n", sg->mean);
             if (algorithm == 1) {
                 cout << "resulting paths: " << f1->distinct_results << "\n\n";
@@ -438,7 +442,51 @@ int main(int argc, char *argv[]) {
 
     clock_t finish = clock();
     long long time_used = (double) (finish - start) / CLOCKS_PER_SEC;
-    cout << "execution time: " << time_used << endl;
+    cout
+            <<
+            "execution time: "
+            <<
+            time_used
+            <<
+            endl;
+    printf(
+        "processed edges: %lld\n"
+        ,
+        edge_number
+    );
+    printf(
+        "saved edges: %lld\n"
+        ,
+        sg
+        ->
+        saved_edges
+    );
+    printf(
+        "avg degree: %f\n"
+        ,
+        sg
+        ->
+        mean
+    );
+    if
+    (algorithm
+     ==
+     1
+    ) {
+        cout << "resulting paths: " << f1->distinct_results << "\n\n";
+    } else if
+    (algorithm
+     ==
+     2
+    ) {
+        cout << "resulting paths: " << f2->distinct_results << "\n\n";
+    } else if
+    (algorithm
+     ==
+     3
+    ) {
+        cout << "resulting paths: " << query->results_count << "\n\n";
+    }
 
     // Construct output file path
     std::string retention = BACKWARD_RETENTION ? std::to_string(zscore) : "0";
@@ -447,12 +495,17 @@ int main(int argc, char *argv[]) {
                               std::to_string(size) + "_s" + std::to_string(slide) + "_q" + std::to_string(query_type) +
                               "_z" + retention + "_wm" + std::to_string(watermark) + ".txt";
     std::string output_file_csv = config.output_base_folder + "output_a" + algorithm_name + "_S" +
-                              std::to_string(size) + "_s" + std::to_string(slide) + "_q" + std::to_string(query_type) +
-                              "_z" + retention + "_wm" + std::to_string(watermark) + ".csv";
+                                  std::to_string(size) + "_s" + std::to_string(slide) + "_q" + std::to_string(
+                                      query_type) +
+                                  "_z" + retention + "_wm" + std::to_string(watermark) + ".csv";
 
     // Open file for writing
     std::ofstream outFile(output_file.c_str());
-    if (!outFile) {
+    if
+    (
+        !
+        outFile
+    ) {
         std::cerr << "Error opening file for writing: " << output_file << std::endl;
 
         if (algorithm == 1) {
@@ -470,21 +523,61 @@ int main(int argc, char *argv[]) {
     }
 
     // Write data to the file
-    if (algorithm == 1) {
+    if
+    (algorithm
+     ==
+     1
+    ) {
         outFile << "resulting paths: " << f1->distinct_results << "\n";
-    } else if (algorithm == 2) {
+    } else if
+    (algorithm
+     ==
+     2
+    ) {
         outFile << "resulting paths: " << f2->distinct_results << "\n";
         outFile << "landmark trees: " << f2->landmarks_count << "\n";
-    } else if (algorithm == 3) {
+    } else if
+    (algorithm
+     ==
+     3
+    ) {
         outFile << "resulting paths: " << query->results_count << "\n";
     }
-    outFile << "processed edges: " << edge_number << "\n";
-    outFile << "saved edges: " << sg->saved_edges << "\n";
-    outFile << "execution time: " << time_used << "\n";
+    outFile
+            <<
+            "processed edges: "
+            <<
+            edge_number
+            <<
+            "\n";
+    outFile
+            <<
+            "saved edges: "
+            <<
+            sg
+            ->
+            saved_edges
+            <<
+            "\n";
+    outFile
+            <<
+            "execution time: "
+            <<
+            time_used
+            <<
+            "\n";
 
-    if (algorithm == 1) {
+    if
+    (algorithm
+     ==
+     1
+    ) {
         f1->export_result(output_file_csv);
-    } else if (algorithm == 2) {
+    } else if
+    (algorithm
+     ==
+     2
+    ) {
         f2->export_result(output_file_csv);
     } else if (algorithm == 3) {
         query->exportResultSet(output_file_csv);
@@ -493,10 +586,18 @@ int main(int argc, char *argv[]) {
     // Close the file
     outFile.close();
 
-    std::cout << "Results written to: " << output_file << std::endl;
+    std::cout
+            <<
+            "Results written to: "
+            <<
+            output_file
+            <<
+            std::endl;
 
-    delete sg;
-    return 0;
+    delete
+            sg;
+    return
+            0;
 }
 
 // Set up the automaton correspondant for each query

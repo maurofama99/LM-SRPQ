@@ -14,9 +14,9 @@ def parse_label_map(config_file):
                 if len(parts) == 2:
                     key, value = parts
                     if key == "default":
-                        default_value = long long(value)
+                        default_value = int(value)
                     else:
-                        label_map[key] = long long(value)
+                        label_map[key] = int(value)
 
     return label_map, default_value
 

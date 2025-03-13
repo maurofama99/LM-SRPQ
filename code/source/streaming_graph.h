@@ -283,52 +283,33 @@ public:
 
     /**
      * Find the vertexes at distance lower than the threshold
-     * from start vertex using Dijkstra's shortest path algorithm,
+     * from start vertex using DFS algorithm,
      * checking the timestamp of the edges to find a connection with a recent window.
      **/
-    bool dijkstra_with_threshold(long long start, long long threshold, long long min_timestamp) {
-        std::unordered_map<long long, long long> distances;
-        std::unordered_map<long long, long long> previous;
-        std::unordered_map<long long, bool> has_valid_timestamp;
-        std::priority_queue<std::pair<long long, long long>, std::vector<std::pair<long long, long long>>, std::greater<>> pq;
+    bool dfs_with_threshold(long long start, long long threshold, long long min_timestamp) {
+        std::unordered_map<long long, bool> visited;
+        return dfs_with_threshold_rec(start, 0, threshold, min_timestamp, visited);
+    }
 
-        for (const auto& [vertex, _] : adjacency_list) {
-            distances[vertex] = std::numeric_limits<long long>::max();
-            previous[vertex] = -1;
-            has_valid_timestamp[vertex] = false;
+    bool dfs_with_threshold_rec(long long current_vertex, long long current_distance, long long threshold, long long min_timestamp, std::unordered_map<long long, bool> &visited) {
+        if (current_distance > threshold) {
+            return false;
         }
 
-        distances[start] = 0;
-        pq.emplace(0, start);
+        visited[current_vertex] = true;
 
-        while (!pq.empty()) {
-            long long current_distance = pq.top().first;
-            long long current_vertex = pq.top().second;
-            pq.pop();
-
-            if (current_distance > distances[current_vertex]) {
-                continue;
+        for (const auto& [neighbor, edge] : adjacency_list[current_vertex]) {
+            if (edge->timestamp > min_timestamp) {
+                return true;
             }
-
-            for (const auto& [neighbor, edge] : adjacency_list[current_vertex]) {
-                bool valid_timestamp = has_valid_timestamp[current_vertex] || edge->timestamp > min_timestamp;
-                if (long long distance = current_distance + 1; distance < distances[neighbor] && distance <= threshold) {
-                    distances[neighbor] = distance;
-                    previous[neighbor] = current_vertex;
-                    has_valid_timestamp[neighbor] = valid_timestamp;
-                    pq.emplace(distance, neighbor);
+            if (!visited[neighbor]) {
+                if (dfs_with_threshold_rec(neighbor, current_distance + 1, threshold, min_timestamp, visited)) {
+                    return true;
                 }
             }
         }
 
-        std::vector<long long> result;
-        for (const auto& [vertex, distance] : distances) {
-            if (distance <= threshold && has_valid_timestamp[vertex]) {
-                result.push_back(vertex);
-            }
-        }
-
-        return !result.empty(); // Return true if there are any valid vertexes
+        return false;
     }
 
     double get_zscore(long long vertex) {

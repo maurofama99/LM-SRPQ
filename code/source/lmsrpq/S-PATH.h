@@ -84,8 +84,6 @@ public:
 				result_pairs[result_pair] = time;  // else add the vertex pair.
 				distinct_results++;
 			}
-			// debug
-			// cout << dst << ", " << time << endl;
 		}
 	}
 

@@ -2,24 +2,24 @@ import csv
 from collections import defaultdict
 
 def read_csv(file_path):
-    result_set = defaultdict(long long)  # Store occurrences of source-destination pairs
+    result_set = defaultdict(int)  # Store occurrences of source-destination pairs
     same_source_destination = 0  # Count pairs where source and destination are the same
     with open(file_path, "r") as f:
         reader = csv.reader(f)
         for row in reader:
-            source, destination, _ = map(long long, row)
+            source, destination, _ = map(int, row)
             result_set[(source, destination)] += 1
             if source == destination:
                 same_source_destination += 1
     return result_set, same_source_destination
 
 def read_csv_db(file_path):
-    result_set = defaultdict(long long)  # Store occurrences of source-destination pairs
+    result_set = defaultdict(int)  # Store occurrences of source-destination pairs
     same_source_destination = 0  # Count pairs where source and destination are the same
     with open(file_path, "r") as f:
         reader = csv.reader(f)
         for row in reader:
-            source, destination = map(long long, row)
+            source, destination = map(int, row)
             result_set[(source, destination)] += 1
             if source == destination:
                 same_source_destination += 1
@@ -58,7 +58,7 @@ def compare_results(file1, file2):
 
 # Example usage
 if __name__ == "__main__":
-    file1 = "/Users/maurofama/Documents/phd/frames4pgs/CbAW4DGSP/code/output_a3_S60000_s30000_q4_z0_wm120000_replay.csv"  # Stream
+    file1 = "output_a4_S86400_s28800_q4_z0.200000_wm0.csv"  # Stream
     file2 = "db-results_500k.csv"  # DB
     compare_results(file1, file2)
 
