@@ -364,8 +364,9 @@ int main(int argc, char *argv[]) {
                 auto cur_edge = current->edge_pt;
                 auto next = current->next;
 
-                if (   (BACKWARD_RETENTION && !REACHABLE_EXTENSION && sg->get_zscore(cur_edge->s) > zscore)
-                    || (BACKWARD_RETENTION && REACHABLE_EXTENSION && sg->get_zscore(cur_edge->s) > zscore && sg->dfs_with_threshold(cur_edge->s, reachability_threshold, evict_end_point->edge_pt->timestamp))) {
+                if ((BACKWARD_RETENTION && !REACHABLE_EXTENSION && sg->get_zscore(cur_edge->s) > zscore)
+                    || (BACKWARD_RETENTION && REACHABLE_EXTENSION && sg->get_zscore(cur_edge->s) > zscore && sg->
+                        dfs_with_threshold(cur_edge->s, reachability_threshold, evict_end_point->edge_pt->timestamp))) {
                     sg->saved_edges++;
                     auto target_window_index = last_window_index;
                     sg->shift_timed_edge(cur_edge->time_pos, windows[target_window_index].first);
